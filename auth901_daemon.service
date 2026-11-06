@@ -1,7 +1,7 @@
 # Auth901 systemd unit
 #
 # Expected layout on the host:
-#   /home/auth901/auth901_cd/
+#   /home/ubuntu/auth901_cd/
 #     server
 #     .env
 #     conf/app.conf
@@ -11,10 +11,8 @@
 #     tmp/
 #
 # Install:
-#   sudo useradd --system --home /home/auth901 --shell /usr/sbin/nologin auth901
-#   sudo chown -R auth901:auth901 /home/auth901/auth901_cd
-#   sudo mkdir -p /home/auth901/auth901_cd/logs /home/auth901/auth901_cd/tmp
-#   sudo cp /home/auth901/auth901_cd/auth901_daemon.service /etc/systemd/system/
+#   sudo mkdir -p /home/ubuntu/auth901_cd/logs /home/ubuntu/auth901_cd/tmp
+#   sudo cp /home/ubuntu/auth901_cd/auth901_daemon.service /etc/systemd/system/
 #   sudo systemctl daemon-reload
 #   sudo systemctl enable --now auth901_daemon
 
@@ -26,10 +24,10 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=auth901
-Group=auth901
-WorkingDirectory=/home/auth901/auth901_cd
-ExecStart=/home/auth901/auth901_cd/server
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/auth901_cd
+ExecStart=/home/ubuntu/auth901_cd/server
 Restart=on-failure
 RestartSec=5
 LimitNOFILE=65536
@@ -38,7 +36,7 @@ NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=false
 PrivateTmp=true
-ReadWritePaths=/home/auth901/auth901_cd/logs /home/auth901/auth901_cd/tmp
+ReadWritePaths=/home/ubuntu/auth901_cd/logs /home/ubuntu/auth901_cd/tmp
 
 [Install]
 WantedBy=multi-user.target
