@@ -12,6 +12,8 @@
 #
 # Install:
 #   sudo mkdir -p /home/ubuntu/auth901_cd/logs /home/ubuntu/auth901_cd/tmp
+#   sudo chown -R ubuntu:ubuntu /home/ubuntu/auth901_cd
+#   chmod +x /home/ubuntu/auth901_cd/server
 #   sudo cp /home/ubuntu/auth901_cd/auth901_daemon.service /etc/systemd/system/
 #   sudo systemctl daemon-reload
 #   sudo systemctl enable --now auth901_daemon
@@ -33,10 +35,9 @@ RestartSec=5
 LimitNOFILE=65536
 
 NoNewPrivileges=true
-ProtectSystem=strict
-ProtectHome=false
 PrivateTmp=true
-ReadWritePaths=/home/ubuntu/auth901_cd/logs /home/ubuntu/auth901_cd/tmp
+ProtectHome=false
+ReadWritePaths=/home/ubuntu/auth901_cd
 
 [Install]
 WantedBy=multi-user.target
