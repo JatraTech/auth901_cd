@@ -2171,9 +2171,9 @@ export function getUserCommonFields() {
 }
 
 export function getDefaultFooterContent() {
-  // the height is inline rather than an attribute: this HTML is injected into the
-  // page, where Tailwind's preflight would otherwise reset it to `height: auto`
-  return `Powered by <a target="_blank" href="https://casdoor.org" rel="noreferrer"><img style="display: inline-block; height: 20px; width: auto; padding-bottom: 3px" alt="Casdoor" src="${StaticBaseUrl}/img/casdoor-logo_1185x256.png"/></a>`;
+  // height/width are inline: this HTML is injected into the page, where
+  // Tailwind's preflight would otherwise reset SVG sizing to the viewBox alone
+  return `<span style="display: inline-flex; align-items: center; gap: 6px"><svg aria-hidden="true" viewBox="0 0 60 48" style="display: block; height: 20px; width: auto; overflow: visible; flex-shrink: 0"><circle cx="13.2" cy="12.2" r="5.8" fill="none" stroke="currentColor" stroke-width="2.6"/><line x1="19" y1="6.4" x2="19" y2="43.5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><line x1="41" y1="4.5" x2="41" y2="43.5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><line x1="41" y1="4.5" x2="37.4" y2="7.4" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><line x1="19" y1="6.4" x2="41" y2="43.5" stroke="#B8860B" stroke-width="2.6" stroke-linecap="round"/></svg>Powered by New901</span>`;
 }
 
 export function getEmptyFooterContent() {
