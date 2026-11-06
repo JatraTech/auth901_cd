@@ -50,6 +50,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/hsluoyz/modsecurity-go v0.0.7
 	github.com/jcmturner/gokrb5/v8 v8.4.4
+	github.com/joho/godotenv v1.5.1
 	github.com/json-iterator/go v1.1.12
 	github.com/lestrrat-go/jwx v1.2.29
 	github.com/lib/pq v1.12.3

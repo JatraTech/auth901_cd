@@ -1,3 +1,5 @@
+.env
+
 # Binaries for programs and plugins
 *.exe
 *.exe~
@@ -43,3 +45,5 @@ web/cypress/videos/
 web/cypress/screenshots/
 web-old/cypress/videos/
 web-old/cypress/screenshots/
+
+web/bun.lock

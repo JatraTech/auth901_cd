@@ -395,6 +395,10 @@ export const OtherProviderInfo = {
       logo: `${StaticBaseUrl}/img/email_resend.png`,
       url: "https://resend.com/",
     },
+    "XOauth2": {
+      logo: `${StaticBaseUrl}/img/email_default.png`,
+      url: "",
+    },
   },
   Storage: {
     "Local File System": {
@@ -1591,6 +1595,7 @@ export function getProviderTypeOptions(category) {
         {id: "SendGrid", name: "SendGrid"},
         {id: "Custom HTTP Email", name: "Custom HTTP Email"},
         {id: "Resend", name: "Resend"},
+        {id:"XOauth2", name: "XOauth2"},
       ]
     );
   } else if (category === "SMS") {
@@ -2203,9 +2208,15 @@ export function getDefaultHtmlEmailContent() {
 </head>
 <body>
 <div class="email-container">
-  <div class="header">
-        <h3>Casbin Organization</h3>
-        <img src="${StaticBaseUrl}/img/casdoor-logo_1185x256.png" alt="Casdoor Logo" width="300">
+  <div class="header" style="background:#111;padding:24px;border-radius:8px;">
+        <h3 style="color:#fff;margin:0 0 12px;">New901</h3>
+        <svg aria-hidden="true" viewBox="0 0 60 48" width="120" height="96" style="display:block;margin:0 auto;overflow:visible;">
+          <circle cx="13.2" cy="12.2" r="5.8" fill="none" stroke="#FFFFFF" stroke-width="2.6"/>
+          <line x1="19" y1="6.4" x2="19" y2="43.5" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round"/>
+          <line x1="41" y1="4.5" x2="41" y2="43.5" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round"/>
+          <line x1="41" y1="4.5" x2="37.4" y2="7.4" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round"/>
+          <line x1="19" y1="6.4" x2="41" y2="43.5" stroke="#B8860B" stroke-width="2.6" stroke-linecap="round"/>
+        </svg>
     </div>
     <p><strong>%{user.friendlyName}</strong>, here is your verification code</p>
     <p>Use this code for your transaction. It's valid for 10 minutes</p>
@@ -2218,11 +2229,8 @@ export function getDefaultHtmlEmailContent() {
       </div>
     </reset-link>
     <p>Thanks</p>
-    <p>Casbin Team</p>
+    <p>New901 Team</p>
     <hr>
-    <div class="footer">
-        <p>Casdoor is a brand operated by Casbin organization. For more info please refer to <a href="https://casdoor.org">https://casdoor.org</a></p>
-    </div>
 </div>
 </body>
 </html>`;
@@ -2246,9 +2254,15 @@ export function getDefaultInvitationHtmlEmailContent() {
 </head>
 <body>
 <div class="email-container">
-  <div class="header">
-        <h3>Casbin Organization</h3>
-        <img src="${StaticBaseUrl}/img/casdoor-logo_1185x256.png" alt="Casdoor Logo" width="300">
+  <div class="header" style="background:#111;padding:24px;border-radius:8px;">
+        <h3 style="color:#fff;margin:0 0 12px;">New901</h3>
+        <svg aria-hidden="true" viewBox="0 0 60 48" width="120" height="96" style="display:block;margin:0 auto;overflow:visible;">
+          <circle cx="13.2" cy="12.2" r="5.8" fill="none" stroke="#FFFFFF" stroke-width="2.6"/>
+          <line x1="19" y1="6.4" x2="19" y2="43.5" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round"/>
+          <line x1="41" y1="4.5" x2="41" y2="43.5" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round"/>
+          <line x1="41" y1="4.5" x2="37.4" y2="7.4" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round"/>
+          <line x1="19" y1="6.4" x2="41" y2="43.5" stroke="#B8860B" stroke-width="2.6" stroke-linecap="round"/>
+        </svg>
     </div>
     <p>You have been invited into Casdoor</p>
     <div class="code">

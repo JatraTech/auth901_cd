@@ -23,19 +23,25 @@ import (
 	"strings"
 
 	"github.com/beego/beego/v2/server/web"
+	"github.com/joho/godotenv"
 )
 
 //go:embed waf.conf
 var WafConf string
 
 func init() {
+	_ = godotenv.Load() // loads ./.env from process cwd; ignore if missing
+
 	// this array contains the beego configuration items that may be modified via env
-	presetConfigItems := []string{"httpport", "appname"}
+	presetConfigItems := []string{"httpport", "appname", "runmode"}
 	for _, key := range presetConfigItems {
 		if value, ok := os.LookupEnv(key); ok {
 			err := web.AppConfig.Set(key, value)
 			if err != nil {
 				panic(err)
+			}
+			if key == "runmode" {
+				web.BConfig.RunMode = value
 			}
 		}
 	}
