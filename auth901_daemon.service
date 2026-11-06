@@ -1,0 +1,44 @@
+# Auth901 systemd unit
+#
+# Expected layout on the host:
+#   /opt/auth901/
+#     server
+#     .env
+#     conf/app.conf
+#     web/build/...
+#     swagger/          (optional)
+#     logs/
+#     tmp/
+#
+# Install:
+#   sudo useradd --system --home /opt/auth901 --shell /usr/sbin/nologin auth901
+#   sudo chown -R auth901:auth901 /opt/auth901
+#   sudo mkdir -p /opt/auth901/logs /opt/auth901/tmp
+#   sudo cp auth901_daemon.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now auth901_daemon
+
+[Unit]
+Description=Auth901 (Casdoor) identity and access management
+Documentation=https://casdoor.ai/docs
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=auth901
+Group=auth901
+WorkingDirectory=/opt/auth901
+ExecStart=/opt/auth901/server
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/auth901/logs /opt/auth901/tmp
+
+[Install]
+WantedBy=multi-user.target
