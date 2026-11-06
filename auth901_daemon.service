@@ -34,10 +34,5 @@ Restart=on-failure
 RestartSec=5
 LimitNOFILE=65536
 
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectHome=false
-ReadWritePaths=/home/ubuntu/auth901_cd
-
 [Install]
 WantedBy=multi-user.target
