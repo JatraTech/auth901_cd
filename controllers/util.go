@@ -461,3 +461,15 @@ func getInvalidSmsReceivers(smsForm SmsForm) []string {
 	}
 	return invalidReceivers
 }
+
+// Prefer the embedding client's origin (document.referrer sent as clientOrigin).
+// The HTTP Referer of Casdoor API calls is usually the login page itself.
+func (c *ApiController) getLoginImpersonationClientOrigin(provided string) string {
+	if provided != "" {
+		return provided
+	}
+	if referer := c.Ctx.Request.Header.Get("Referer"); referer != "" {
+		return referer
+	}
+	return c.Ctx.Request.Header.Get("Origin")
+}

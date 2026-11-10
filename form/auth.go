@@ -75,6 +75,9 @@ type AuthForm struct {
 	FaceId      []float64 `json:"faceId"`
 	FaceIdImage []string  `json:"faceIdImage"`
 	UserCode    string    `json:"userCode"`
+
+	// client page origin (from document.referrer) for login impersonation allowlist checks
+	ClientOrigin string `json:"clientOrigin"`
 }
 
 func GetAuthFormFieldValue(form *AuthForm, fieldName string) (bool, string) {

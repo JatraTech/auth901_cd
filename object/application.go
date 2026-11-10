@@ -116,6 +116,8 @@ type Application struct {
 	HeaderHtml                   string          `xorm:"mediumtext" json:"headerHtml"`
 	PageHtml                     string          `xorm:"mediumtext" json:"pageHtml"`
 	EnableCustomScript           bool            `json:"enableCustomScript"`
+	EnableLoginImpersonation     bool            `json:"enableLoginImpersonation"`
+	LoginImpersonationOrigins    []string        `xorm:"text" json:"loginImpersonationOrigins"`
 	EnablePassword               bool            `json:"enablePassword"`
 	EnableSignUp                 bool            `json:"enableSignUp"`
 	DisableSelfSignup            bool            `json:"disableSelfSignup"`

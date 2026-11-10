@@ -21,6 +21,10 @@ import {ProviderButtons, getVisibleProviders} from "@/components/auth/ProviderBu
 import {WeChatLoginPanel} from "@/components/auth/WeChatLoginPanel";
 import {QrCornerSwitch, WeChatQrConnectPanel} from "@/components/auth/WeChatQrConnectPanel";
 import {needsWeChatQrDialog} from "@/components/auth/WeChatQrDialog";
+import {
+  LoginImpersonationUserList,
+  type LoginImpersonationUser,
+} from "@/components/auth/LoginImpersonationUserList";
 import {OrganizationSelect} from "@/components/common/OrganizationSelect";
 import {RedirectForm} from "@/components/auth/RedirectForm";
 import {CountryCodeSelect} from "@/components/common/CountryCodeSelect";
@@ -40,6 +44,10 @@ import * as AuthBackend from "@/backend/AuthBackend";
 import * as UserBackend from "@/backend/UserBackend";
 import * as OrganizationBackend from "@/backend/OrganizationBackend";
 import * as Setting from "@/lib/setting";
+import {
+  getLoginImpersonationClientOrigin,
+  isLoginImpersonationClientAllowed,
+} from "@/lib/login-impersonation";
 
 type LoginType = "login" | "code" | "cas" | "saml" | "device";
 type LoginMethod = "password" | "verificationCode" | "verificationCodeEmail" | "verificationCodePhone" | "ldap" | "webAuthn" | "wechat" | "faceId" | "magicLink" | "device";
@@ -461,12 +469,21 @@ export default function LoginPage({type = "login", application: applicationProp,
       .catch(() => {});
   }, [type, owner, preview, navigate]);
 
-  // Already signed in on a plain /login: go to the console.
+  // Already signed in on a plain /login: go to the console — unless this app
+  // enables login impersonation, which needs the page to stay open.
   React.useEffect(() => {
-    if (!preview && type === "login" && account && !location.search.includes("silentSignin")) {
-      navigate(Setting.getFromLink(), {replace: true, state: {from: "/login"}});
+    if (preview || type !== "login" || !account || location.search.includes("silentSignin")) {
+      return;
     }
-  }, [account, type, navigate, location.search, preview]);
+    // wait until the application is loaded so the flag is known
+    if (application === undefined) {
+      return;
+    }
+    if (isLoginImpersonationClientAllowed(application)) {
+      return;
+    }
+    navigate(Setting.getFromLink(), {replace: true, state: {from: "/login"}});
+  }, [account, type, navigate, location.search, preview, application]);
 
   /** An iframe-embedded sign-in reports its progress to the host page. */
   const sendSilentSigninData = (data: string) => {
@@ -667,6 +684,21 @@ export default function LoginPage({type = "login", application: applicationProp,
       application: application.name,
       organization: application.organization,
       language: Setting.getLanguage(),
+    }));
+  };
+
+  const loginAsImpersonatedUser = (user: LoginImpersonationUser) => {
+    if (!checkAgreement()) {
+      return;
+    }
+    doLogin(applyRequestType({
+      application: application.name,
+      organization: user.owner || application.organization,
+      username: user.name,
+      signinMethod: "Impersonate",
+      autoSignin: true,
+      language: Setting.getLanguage(),
+      clientOrigin: getLoginImpersonationClientOrigin(),
     }));
   };
 
@@ -1367,9 +1399,48 @@ export default function LoginPage({type = "login", application: applicationProp,
   // form, which is how an OAuth or device request gets approved.
   const showSignedInBox = !promptLogin && !!account && account.owner === application.organization;
 
+  const clientOrigin = getLoginImpersonationClientOrigin();
+  const quickLoginAllowed = isLoginImpersonationClientAllowed(application);
+
+  const renderQuickLogin = () => {
+    if (!quickLoginAllowed) {
+      return null;
+    }
+    return (
+      <div className="space-y-3">
+        <AuthDivider />
+        <div className="space-y-1">
+          <h3 className="text-base font-semibold tracking-tight">{i18next.t("login:Quick login")}</h3>
+          <p className="text-sm text-muted-foreground">
+            {i18next.t("login:Pick a user to sign in as them without a password")}
+          </p>
+        </div>
+        {isSigninAgreementShown(application) ? (
+          <AgreementCheckbox application={application} checked={agreed} onChange={setAgreed} />
+        ) : null}
+        <LoginImpersonationUserList
+          applicationName={application.name}
+          clientOrigin={clientOrigin}
+          onSelect={loginAsImpersonatedUser}
+          disabled={loading}
+        />
+      </div>
+    );
+  };
+
   // The whole page can be replaced by the application's own markup.
   if (application.signinHtml) {
-    return <CustomHtml html={application.signinHtml} trusted={isTrustedApplication(application)} />;
+    if (!quickLoginAllowed) {
+      return <CustomHtml html={application.signinHtml} trusted={isTrustedApplication(application)} />;
+    }
+    return (
+      <AuthLayout preview={!!preview} application={application}>
+        <div className="space-y-6">
+          <CustomHtml html={application.signinHtml} trusted={isTrustedApplication(application)} />
+          {renderQuickLogin()}
+        </div>
+      </AuthLayout>
+    );
   }
 
   const signinItems = (application.signinItems ?? []) as any[];
@@ -1768,6 +1839,8 @@ export default function LoginPage({type = "login", application: applicationProp,
         ) : null}
 
         {preview === "auto" || preview === "theme" ? null : <GoogleOneTap application={application} />}
+
+        {renderQuickLogin()}
 
         {faceValues !== null ? (
           hasFaceIdProvider ? (

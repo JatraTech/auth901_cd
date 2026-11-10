@@ -922,6 +922,42 @@ func (application *Application) IsOriginValid(origin string) bool {
 	return false
 }
 
+func hostnameFromOriginEntry(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	if !strings.Contains(value, "://") {
+		value = "https://" + value
+	}
+	parsed, err := url.Parse(value)
+	if err != nil {
+		return ""
+	}
+	return strings.ToLower(parsed.Hostname())
+}
+
+// IsLoginImpersonationOriginAllowed reports whether clientOrigin's hostname is in
+// the application's loginImpersonationOrigins allowlist (exact host match).
+func (application *Application) IsLoginImpersonationOriginAllowed(clientOrigin string) bool {
+	if application == nil || !application.EnableLoginImpersonation {
+		return false
+	}
+	if len(application.LoginImpersonationOrigins) == 0 {
+		return false
+	}
+	clientHost := hostnameFromOriginEntry(clientOrigin)
+	if clientHost == "" {
+		return false
+	}
+	for _, entry := range application.LoginImpersonationOrigins {
+		if hostnameFromOriginEntry(entry) == clientHost {
+			return true
+		}
+	}
+	return false
+}
+
 func isSameLoopbackHost(uri *url.URL, targetUri *url.URL) bool {
 	host := uri.Hostname()
 	if host != targetUri.Hostname() {

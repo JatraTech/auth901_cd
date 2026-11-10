@@ -35,6 +35,17 @@ export function getUsers(owner, page: any = "", pageSize: any = "", field: any =
   }).then(res => res.json());
 }
 
+export function getLoginImpersonationUsers(application, page: any = "1", pageSize: any = "50", field: any = "name", value: any = "", clientOrigin: any = "") {
+  const origin = encodeURIComponent(clientOrigin || "");
+  return fetch(`${Setting.ServerUrl}/api/get-login-impersonation-users?application=${encodeURIComponent(application)}&p=${page}&pageSize=${pageSize}&field=${field}&value=${encodeURIComponent(value)}&clientOrigin=${origin}`, {
+    method: "GET",
+    credentials: "include",
+    headers: {
+      "Accept-Language": Setting.getAcceptLanguage(),
+    },
+  }).then(res => res.json());
+}
+
 export function getUser(owner, name) {
   return fetch(`${Setting.ServerUrl}/api/get-user?id=${owner}/${encodeURIComponent(name)}`, {
     method: "GET",

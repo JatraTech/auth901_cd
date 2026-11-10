@@ -775,6 +775,68 @@ func (c *ApiController) Login() {
 
 	verificationType := ""
 
+	// Passwordless "log in as" from the login page when the application enables it.
+	// Skips password, captcha, and MFA; gated by EnableLoginImpersonation + origin allowlist.
+	if authForm.SigninMethod == "Impersonate" {
+		if authForm.Username == "" {
+			c.ResponseError(c.T("general:Missing parameter"))
+			return
+		}
+
+		application, err := object.GetApplication(fmt.Sprintf("admin/%s", authForm.Application))
+		if err != nil {
+			c.ResponseError(err.Error())
+			return
+		}
+		if application == nil {
+			c.ResponseError(fmt.Sprintf(c.T("auth:The application: %s does not exist"), authForm.Application))
+			return
+		}
+		if !application.EnableLoginImpersonation {
+			c.ResponseError(c.T("auth:Unauthorized operation"))
+			return
+		}
+
+		if !application.IsLoginImpersonationOriginAllowed(c.getLoginImpersonationClientOrigin(authForm.ClientOrigin)) {
+			c.ResponseError(c.T("auth:Unauthorized operation"))
+			return
+		}
+
+		user, err := object.GetUserByFieldsForSharedApp(application, authForm.Organization, authForm.Username)
+		if err != nil {
+			c.ResponseError(err.Error())
+			return
+		}
+		if user == nil || user.IsDeleted {
+			c.ResponseError(fmt.Sprintf(c.T("general:The user: %s doesn't exist"), util.GetId(authForm.Organization, authForm.Username)))
+			return
+		}
+		if user.IsForbidden {
+			c.ResponseError(c.T("check:The user is forbidden to sign in, please contact the administrator"))
+			return
+		}
+		if user.Tag == "guest-user" {
+			c.ResponseError(c.T("check:Guest users must upgrade their account by setting a username and password before they can sign in directly"))
+			return
+		}
+
+		resp = c.HandleLoggedIn(application, user, &authForm)
+		c.Ctx.Input.SetParam("recordUserId", user.GetId())
+
+		if authForm.Language != "" {
+			user.Language = authForm.Language
+			_, err = object.UpdateUser(user.GetId(), user, []string{"language"}, user.IsAdmin)
+			if err != nil {
+				c.ResponseError(err.Error())
+				return
+			}
+		}
+
+		c.Data["json"] = resp
+		c.ServeJSON()
+		return
+	}
+
 	// a magic link posts no username, the one-time token in the link is the credential.
 	// The passcode of a sign-in that already asked for MFA is answered further below
 	isMagicLinkSignin := authForm.SigninMethod == "Magic link" && c.getMfaUserSession() == ""

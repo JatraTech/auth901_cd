@@ -136,6 +136,93 @@ func (c *ApiController) GetUsers() {
 	}
 }
 
+// GetLoginImpersonationUsers
+// @Title GetLoginImpersonationUsers
+// @Tag User API
+// @Description list users for the login-page impersonation picker (gated by application.enableLoginImpersonation)
+// @Param   application  query    string  true   "The application name"
+// @Param   p            query    string  false  "Page number"
+// @Param   pageSize     query    string  false  "Page size"
+// @Param   field        query    string  false  "Search field"
+// @Param   value        query    string  false  "Search value"
+// @Success 200 {array} object.User The Response object
+// @router /get-login-impersonation-users [get]
+func (c *ApiController) GetLoginImpersonationUsers() {
+	applicationName := c.Ctx.Input.Query("application")
+	if applicationName == "" {
+		c.ResponseError(c.T("general:Missing parameter"))
+		return
+	}
+
+	application, err := object.GetApplication(fmt.Sprintf("admin/%s", applicationName))
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	if application == nil {
+		c.ResponseError(fmt.Sprintf(c.T("auth:The application: %s does not exist"), applicationName))
+		return
+	}
+	if !application.EnableLoginImpersonation {
+		c.ResponseError(c.T("auth:Unauthorized operation"))
+		return
+	}
+
+	if !application.IsLoginImpersonationOriginAllowed(c.getLoginImpersonationClientOrigin(c.Ctx.Input.Query("clientOrigin"))) {
+		c.ResponseError(c.T("auth:Unauthorized operation"))
+		return
+	}
+
+	owner := application.Organization
+	limitStr := c.Ctx.Input.Query("pageSize")
+	field := c.Ctx.Input.Query("field")
+	value := c.Ctx.Input.Query("value")
+	if field == "" {
+		field = "name"
+	}
+
+	limit := 20
+	if limitStr != "" {
+		limit = util.ParseInt(limitStr)
+	}
+	// pagination.NewPaginator reads "p" from the request; keep a sane upper bound
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	count, err := object.GetUserCount(owner, field, value, "")
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+
+	paginator := pagination.NewPaginator(c.Ctx.Request, limit, count)
+	users, err := object.GetPaginationUsers(owner, paginator.Offset(), limit, field, value, "name", "asc", "")
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+
+	masked := make([]*object.User, 0, len(users))
+	for _, user := range users {
+		if user == nil || user.IsDeleted || user.IsForbidden || user.Tag == "guest-user" {
+			continue
+		}
+		masked = append(masked, &object.User{
+			Owner:       user.Owner,
+			Name:        user.Name,
+			DisplayName: user.DisplayName,
+			Avatar:      user.Avatar,
+			Email:       user.Email,
+		})
+	}
+
+	c.ResponseOk(masked, paginator.Nums())
+}
+
 // GetUser
 // @Title GetUser
 // @Tag User API

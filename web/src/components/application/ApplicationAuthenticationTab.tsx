@@ -2,6 +2,7 @@
 import i18next from "i18next";
 import {Input} from "@/components/ui/input";
 import {Switch} from "@/components/ui/switch";
+import {TagsInput} from "@/components/common/TagsInput";
 import {FormRow} from "@/components/crud/FormRow";
 import type {ApplicationTabProps} from "@/components/application/types";
 import * as Setting from "@/lib/setting";
@@ -57,6 +58,21 @@ export function ApplicationAuthenticationTab({application, updateField}: Applica
             placeholder="1"
             value={application.maxSessions || ""}
             onChange={(e) => updateField("maxSessions", Setting.myParseInt(e.target.value))}
+          />
+        </FormRow>
+      ) : null}
+      <FormRow labelKey="application:Enable login impersonation">
+        <Switch
+          checked={!!application.enableLoginImpersonation}
+          onCheckedChange={(v) => updateField("enableLoginImpersonation", v)}
+        />
+      </FormRow>
+      {application.enableLoginImpersonation ? (
+        <FormRow labelKey="application:Login impersonation origins" block>
+          <TagsInput
+            value={application.loginImpersonationOrigins ?? []}
+            onChange={(v) => updateField("loginImpersonationOrigins", v)}
+            placeholder="hrm.example.com, https://app.example.com"
           />
         </FormRow>
       ) : null}
