@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/casdoor/casdoor/certificate"
+	"github.com/casdoor/casdoor/gm"
 	"github.com/casdoor/casdoor/i18n"
 	"github.com/casdoor/casdoor/util"
 	"github.com/xorm-io/core"
@@ -46,6 +47,16 @@ type Cert struct {
 
 	Certificate string `xorm:"mediumtext" json:"certificate"`
 	PrivateKey  string `xorm:"mediumtext" json:"privateKey"`
+
+	// "HSM" when the private key stays in the hardware security module set in app.conf, found by KeyReference: a
+	// PKCS #11 CKA_LABEL (or "id:<hex CKA_ID>")
+	KeyStorage   string `xorm:"varchar(100)" json:"keyStorage"`
+	KeyReference string `xorm:"varchar(200)" json:"keyReference"`
+
+	KeyId               string `xorm:"varchar(100)" json:"keyId"`
+	PreviousKeyId       string `xorm:"varchar(100)" json:"previousKeyId"`
+	PreviousCertificate string `xorm:"mediumtext" json:"previousCertificate"`
+	RotatedTime         string `xorm:"varchar(100)" json:"rotatedTime"`
 }
 
 func GetMaskedCert(cert *Cert) *Cert {
@@ -239,6 +250,10 @@ func (p *Cert) GetId() string {
 }
 
 func (p *Cert) populateContent() error {
+	if p.IsHsmKey() {
+		return p.populateHsmContent()
+	}
+
 	if p.Certificate != "" && p.PrivateKey != "" {
 		return nil
 	}
@@ -264,6 +279,16 @@ func (p *Cert) populateContent() error {
 
 	if p.CryptoAlgorithm == "RSA" {
 		p.CryptoAlgorithm = "RS256"
+	}
+
+	if p.CryptoAlgorithm == gm.Alg {
+		certificate, privateKey, err := gm.GenerateCertificate(p.ExpireInYears, p.Name, p.Owner)
+		if err != nil {
+			return err
+		}
+		p.Certificate = certificate
+		p.PrivateKey = privateKey
+		return nil
 	}
 
 	sigAlgorithm := p.CryptoAlgorithm[:2]

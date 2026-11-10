@@ -49,7 +49,23 @@ export const StaticBaseUrl = Conf.StaticBaseUrl;
 export const MAX_PAGE_SIZE = 25;
 export const SEARCH_DEBOUNCE_MS = 300;
 
+export const PricingUrl = "https://casdoor.cn/pricing";
+
+// the backend ends the message of a feature that needs a higher edition with " (<pricing page>)"
+const editionRequiredSuffix = ` (${PricingUrl})`;
+
 export function showMessage(type: "success" | "error" | "info" | "warning", text: string) {
+  if (type === "error" && typeof text === "string" && text.includes(editionRequiredSuffix)) {
+    toast.error(text.replace(editionRequiredSuffix, ""), {
+      duration: 15000,
+      action: {
+        label: i18next.t("general:View editions and pricing"),
+        onClick: () => window.open(PricingUrl, "_blank", "noopener,noreferrer"),
+      },
+    });
+    return;
+  }
+
   if (type === "success") {
     toast.success(text);
   } else if (type === "error") {
@@ -228,7 +244,7 @@ export function getThemeData(organization, application) {
   } else if (organization?.themeData?.isEnabled) {
     return organization.themeData;
   } else {
-    return Conf.ThemeDefault;
+    return Conf.getThemeDefault();
   }
 }
 
@@ -341,6 +357,10 @@ export const OtherProviderInfo = {
       logo: `${StaticBaseUrl}/img/social_twilio.svg`,
       url: "https://www.twilio.com/docs/verify",
     },
+    "Plugin": {
+      logo: `${StaticBaseUrl}/img/social_custom.png`,
+      url: "",
+    },
     "SmsBao SMS": {
       logo: `${StaticBaseUrl}/img/social_smsbao.png`,
       url: "https://www.smsbao.com/",
@@ -395,9 +415,9 @@ export const OtherProviderInfo = {
       logo: `${StaticBaseUrl}/img/email_resend.png`,
       url: "https://resend.com/",
     },
-    "XOauth2": {
-      logo: `${StaticBaseUrl}/img/email_default.png`,
-      url: "",
+    "Microsoft 365": {
+      logo: `${StaticBaseUrl}/img/social_microsoftonline.png`,
+      url: "https://learn.microsoft.com/exchange/client-developer/legacy-protocols/how-to-authenticate-an-imap-pop-smtp-application-by-using-oauth",
     },
   },
   Storage: {
@@ -517,6 +537,10 @@ export const OtherProviderInfo = {
       logo: `${StaticBaseUrl}/img/payment_adyen.svg`,
       url: "https://www.adyen.com/",
     },
+    "Plugin": {
+      logo: `${StaticBaseUrl}/img/social_custom.png`,
+      url: "",
+    },
   },
   Captcha: {
     "Default": {
@@ -551,6 +575,10 @@ export const OtherProviderInfo = {
       logo: `${StaticBaseUrl}/img/social_cloudflare.png`,
       url: "https://www.cloudflare.com/products/turnstile/",
     },
+    "ALTCHA": {
+      logo: `${StaticBaseUrl}/img/social_altcha.svg`,
+      url: "https://altcha.org",
+    },
   },
   AI: {
     "OpenAI API - GPT": {
@@ -559,6 +587,10 @@ export const OtherProviderInfo = {
     },
   },
   Notification: {
+    "Plugin": {
+      logo: `${StaticBaseUrl}/img/social_custom.png`,
+      url: "",
+    },
     "Telegram": {
       logo: `${StaticBaseUrl}/img/social_telegram.png`,
       url: "https://telegram.org/",
@@ -664,6 +696,10 @@ export const OtherProviderInfo = {
     "Alibaba Cloud": {
       logo: `${StaticBaseUrl}/img/social_aliyun.png`,
       url: "https://www.aliyun.com/product/idverification",
+    },
+    "Plugin": {
+      logo: `${StaticBaseUrl}/img/social_custom.png`,
+      url: "",
     },
   },
   Audit: {
@@ -1474,11 +1510,11 @@ export function isCustomOAuthType(type) {
 }
 
 export function getProviderLogoURL(provider) {
-  if (isCustomOAuthType(provider.type) && provider.customLogo) {
+  if ((isCustomOAuthType(provider.type) || provider.type === "Plugin") && provider.customLogo) {
     return provider.customLogo;
   }
   if (provider.category === "OAuth") {
-    const type = isCustomOAuthType(provider.type) ? "Custom" : provider.type;
+    const type = isCustomOAuthType(provider.type) || provider.type === "Plugin" ? "Custom" : provider.type;
     return `${StaticBaseUrl}/img/social_${type.toLowerCase()}.png`;
   } else {
     const info = OtherProviderInfo[provider.category]?.[provider.type];
@@ -1583,6 +1619,7 @@ export function getProviderTypeOptions(category) {
         {id: "Custom9", name: "Custom9"},
         {id: "Custom10", name: "Custom10"},
         {id: "Custom Flexible", name: "Custom Flexible"},
+        {id: "Plugin", name: "Plugin"},
       ]
     );
   } else if (category === "Email") {
@@ -1595,7 +1632,7 @@ export function getProviderTypeOptions(category) {
         {id: "SendGrid", name: "SendGrid"},
         {id: "Custom HTTP Email", name: "Custom HTTP Email"},
         {id: "Resend", name: "Resend"},
-        {id:"XOauth2", name: "XOauth2"},
+        {id: "Microsoft 365", name: "Microsoft 365"},
       ]
     );
   } else if (category === "SMS") {
@@ -1619,6 +1656,7 @@ export function getProviderTypeOptions(category) {
         {id: "SmsBao SMS", name: "SmsBao SMS"},
         {id: "SUBMAIL SMS", name: "SUBMAIL SMS"},
         {id: "Msg91 SMS", name: "Msg91 SMS"},
+        {id: "Plugin", name: "Plugin"},
       ]
     );
   } else if (category === "Storage") {
@@ -1659,6 +1697,7 @@ export function getProviderTypeOptions(category) {
       {id: "FastSpring", name: "FastSpring"},
       {id: "Lemon Squeezy", name: "Lemon Squeezy"},
       {id: "Adyen", name: "Adyen"},
+      {id: "Plugin", name: "Plugin"},
     ]);
   } else if (category === "Captcha") {
     return ([
@@ -1669,6 +1708,7 @@ export function getProviderTypeOptions(category) {
       {id: "Aliyun Captcha", name: "Aliyun Captcha"},
       {id: "GEETEST", name: "GEETEST"},
       {id: "Cloudflare Turnstile", name: "Cloudflare Turnstile"},
+      {id: "ALTCHA", name: "ALTCHA"},
     ]);
   } else if (category === "Notification") {
     return ([
@@ -1692,6 +1732,7 @@ export function getProviderTypeOptions(category) {
       {id: "Viber", name: "Viber"},
       {id: "CUCloud", name: "CUCloud"},
       {id: "WeCom", name: "WeCom"},
+      {id: "Plugin", name: "Plugin"},
     ]);
   } else if (category === "Face ID") {
     return ([
@@ -1706,6 +1747,7 @@ export function getProviderTypeOptions(category) {
     return ([
       {id: "Jumio", name: "Jumio"},
       {id: "Alibaba Cloud", name: "Alibaba Cloud"},
+      {id: "Plugin", name: "Plugin"},
     ]);
   } else if (category === "Audit") {
     return ([
@@ -1812,7 +1854,7 @@ export function getProvidersRule(application, item) {
 // The login page offers a credential form, the sign-in providers or a QR panel; without any of them it has nothing to sign in with.
 export function hasAnySigninMethod(application) {
   if (isPasswordEnabled(application) || isCodeSigninEnabled(application) || isWebAuthnEnabled(application) ||
-    isLdapEnabled(application) || isFaceIdEnabled(application) || isMagicLinkEnabled(application)) {
+    isLdapEnabled(application) || isFaceIdEnabled(application) || isMagicLinkEnabled(application) || isCertLoginEnabled(application)) {
     return true;
   }
   const providersShown = (application?.signinItems ?? []).some(item => item.name === "Providers" && item.visible);
@@ -1856,6 +1898,10 @@ export function isFaceIdEnabled(application) {
 
 export function isMagicLinkEnabled(application) {
   return isSigninMethodEnabled(application, "Magic link");
+}
+
+export function isCertLoginEnabled(application) {
+  return isSigninMethodEnabled(application, "Certificate");
 }
 
 
@@ -2605,6 +2651,11 @@ export function getForgetLink(application) {
     return `/forget/${application.name}`;
   }
   return application.forgetUrl;
+}
+
+/** The backend never signs anyone up into the built-in organization, whose members are global admins. */
+export function isSignupAllowed(application) {
+  return !!application?.enableSignUp && application.organization !== "built-in";
 }
 
 /** The OAuth params have to survive the hop, or the signup cannot hand back a code. */

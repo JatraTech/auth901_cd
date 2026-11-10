@@ -128,6 +128,7 @@ type Application struct {
 	EnableCodeSignin             bool            `json:"enableCodeSignin"`
 	EnableExclusiveSignin        bool            `json:"enableExclusiveSignin"`
 	MaxSessions                  int             `json:"maxSessions"`
+	InactiveTimeoutMinutes       int             `json:"inactiveTimeoutMinutes"`
 	EnableSamlCompress           bool            `json:"enableSamlCompress"`
 	EnableSamlC14n10             bool            `json:"enableSamlC14n10"`
 	EnableSamlPostBinding        bool            `json:"enableSamlPostBinding"`
@@ -152,6 +153,8 @@ type Application struct {
 	SamlHashAlgorithm            string          `xorm:"varchar(20)" json:"samlHashAlgorithm"`
 	SamlC14nPrefix               string          `xorm:"varchar(100)" json:"samlC14nPrefix"`
 	IsShared                     bool            `json:"isShared"`
+	ExternalUsers                []string        `xorm:"mediumtext" json:"externalUsers"`
+	ExternalGroups               []string        `xorm:"mediumtext" json:"externalGroups"`
 	IpRestriction                string          `json:"ipRestriction"`
 
 	ClientId                string                 `xorm:"varchar(100)" json:"clientId"`
@@ -200,6 +203,9 @@ type Application struct {
 	UpstreamHost string   `xorm:"varchar(100)" json:"upstreamHost"`
 	SslMode      string   `xorm:"varchar(100)" json:"sslMode"`
 	SslCert      string   `xorm:"varchar(100)" json:"sslCert"`
+
+	// FormFill signs users into legacy systems without SSO by filling their sign-in forms with the managed accounts
+	FormFill *FormFill `xorm:"json" json:"formFill"`
 
 	CertObj *Cert `xorm:"-"`
 

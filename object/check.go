@@ -83,7 +83,7 @@ func CheckUserSignup(application *Application, organization *Organization, authF
 	}
 
 	if application.IsSignupItemVisible("Password") {
-		msg := CheckPasswordComplexityByOrg(organization, authForm.Password, lang)
+		msg := CheckPasswordComplexityByOrg(organization, authForm.Password, lang, authForm.Username)
 		if msg != "" {
 			return msg
 		}
@@ -318,14 +318,22 @@ func CheckPassword(user *User, password string, lang string, options ...bool) er
 	return resetUserSigninErrorTimes(user)
 }
 
-func CheckPasswordComplexityByOrg(organization *Organization, password string, lang string) string {
+func CheckPasswordComplexityByOrg(organization *Organization, password string, lang string, username ...string) string {
 	errorMsg := checkPasswordComplexity(password, organization.PasswordOptions, lang)
-	return errorMsg
+	if errorMsg != "" {
+		return errorMsg
+	}
+
+	name := ""
+	if len(username) > 0 {
+		name = username[0]
+	}
+	return checkPasswordSecurityPolicy(organization, password, name, lang)
 }
 
 func CheckPasswordComplexity(user *User, password string, lang string) string {
 	organization, _ := GetOrganizationByUser(user)
-	return CheckPasswordComplexityByOrg(organization, password, lang)
+	return CheckPasswordComplexityByOrg(organization, password, lang, user.Name)
 }
 
 func CheckLdapUserPassword(user *User, password string, lang string, options ...bool) error {
@@ -529,6 +537,9 @@ func CheckApiPermission(userId string, organization string, path string, method 
 		userHit := permission.isUserHit(userId)
 		groupHit := permission.isGroupHit(userId)
 		roleHit := permission.isRoleHit(userId)
+		if (groupHit || roleHit) && !isRbacAllowed() {
+			return false, requireRbac()
+		}
 
 		if !userHit && !groupHit && !roleHit {
 			if permission.Effect == "Allow" {
@@ -632,7 +643,7 @@ func CheckApiPermission(userId string, organization string, path string, method 
 }
 
 func IsUserOfApplication(user *User, application *Application) (bool, error) {
-	if user.IsGlobalAdmin() || user.Owner == application.Organization || application.IsShared {
+	if user.IsGlobalAdmin() || user.Owner == application.Organization || application.IsShared || application.IsExternalUser(user) {
 		return true, nil
 	}
 
@@ -772,6 +783,9 @@ func CheckLoginPermission(userId string, application *Application) (bool, error)
 		userHit := permission.isUserHit(userId)
 		groupHit := permission.isGroupHit(userId)
 		roleHit := permission.isRoleHit(userId)
+		if (groupHit || roleHit) && !isRbacAllowed() {
+			return false, requireRbac()
+		}
 
 		if !userHit && !groupHit && !roleHit {
 			if permission.Effect == "Allow" {

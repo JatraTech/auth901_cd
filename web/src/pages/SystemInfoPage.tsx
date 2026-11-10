@@ -1,5 +1,6 @@
 import * as React from "react";
 import i18next from "i18next";
+import {Link} from "react-router-dom";
 import {Card, CardContent, CardHeader, CardTitle} from "@/components/ui/card";
 import {Alert, AlertDescription, AlertTitle} from "@/components/ui/alert";
 import {Badge} from "@/components/ui/badge";
@@ -10,6 +11,8 @@ import {Loading} from "@/components/common/Loading";
 import {PageHeader} from "@/components/crud/PageHeader";
 import * as SystemBackend from "@/backend/SystemInfo";
 import * as Setting from "@/lib/setting";
+import {getEditionText, PricingUrl} from "@/components/common/EditionNotice";
+import {EditionSwitcher, getEditionPreviewHint, isEditionPreviewEnabled} from "@/components/common/EditionPreview";
 
 const REFRESH_MS = 5000;
 const UPGRADE_POLL_MS = 1500;
@@ -314,6 +317,128 @@ function UpgradeCard() {
   );
 }
 
+/** The certificate sign-in port set in app.conf, shown only when it is. */
+function TlsListenersCard() {
+  const [listeners, setListeners] = React.useState<any[]>([]);
+
+  React.useEffect(() => {
+    SystemBackend.getTlsListeners().then((res: any) => {
+      if (res.status === "ok" && Array.isArray(res.data)) {
+        setListeners(res.data);
+      }
+    });
+  }, []);
+
+  if (listeners.length === 0) {
+    return null;
+  }
+
+
+  return (
+    <Card id="tls-listeners-card">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">{i18next.t("system:Secure ports")}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        {listeners.map((listener: any) => (
+          <div key={listener.name} className="space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium">{i18next.t("system:Certificate login port")}</span>
+              <span className="font-mono text-xs text-muted-foreground">:{listener.port}</span>
+              <Badge variant={listener.running ? "success" : "destructive"}>
+                {listener.running ? i18next.t("system:Listening") : i18next.t("system:Not started")}
+              </Badge>
+            </div>
+            {listener.certificates?.length ? (
+              <p className="text-xs text-muted-foreground">
+                {i18next.t("cert:Certificate")}: <span className="break-all font-mono">{listener.certificates.join(", ")}</span>
+              </p>
+            ) : null}
+            {listener.error ? (
+              <Alert variant="destructive">
+                <AlertDescription>
+                  {listener.error}
+                  {listener.code === "edition-required" ? (
+                    <>
+                      {" "}
+                      <a href={PricingUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+                        {i18next.t("general:Learn more")}
+                      </a>
+                    </>
+                  ) : null}
+                </AlertDescription>
+              </Alert>
+            ) : null}
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function LicenseCard() {
+  const [license, setLicense] = React.useState<any>(null);
+
+  React.useEffect(() => {
+    SystemBackend.getLicense().then((res: any) => {
+      if (res.status === "ok") {
+        setLicense(res.data);
+      }
+    });
+  }, []);
+
+  if (license === null) {
+    return null;
+  }
+
+  return (
+    <Card id="license-card">
+      <CardHeader className="flex-row items-center justify-between gap-3 space-y-0 pb-3">
+        <CardTitle className="text-base">{i18next.t("system:License")}</CardTitle>
+        <Badge variant={license.edition === "Community" ? "secondary" : "default"}>{getEditionText(license.edition)}</Badge>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        {license.id ? (
+          <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-[max-content_1fr]">
+            <dt className="text-muted-foreground">{i18next.t("system:Licensee")}</dt>
+            <dd>{license.licensee}</dd>
+            <dt className="text-muted-foreground">{i18next.t("general:ID")}</dt>
+            <dd className="font-mono text-xs leading-5">{license.id}</dd>
+            <dt className="text-muted-foreground">{i18next.t("general:Expire time")}</dt>
+            <dd>{license.expireTime ? Setting.getFormattedDate(license.expireTime) : i18next.t("invitation:Never")}</dd>
+          </dl>
+        ) : null}
+        {license.error ? (
+          <Alert variant="destructive">
+            <AlertDescription>{license.error}</AlertDescription>
+          </Alert>
+        ) : null}
+        {!license.id && !license.error ? (
+          <p className="text-muted-foreground">
+            {i18next.t("system:No license configured")}{" "}
+            <a href={PricingUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+              {i18next.t("general:Learn more")}
+            </a>
+          </p>
+        ) : null}
+        <p>
+          <Link to="/editions" className="underline underline-offset-2">
+            {i18next.t("edition:See every feature and take the tour")}
+          </Link>
+        </p>
+        {isEditionPreviewEnabled() ? (
+          <div className="space-y-2 border-t pt-3">
+            <p className="text-muted-foreground">
+              {getEditionPreviewHint()}
+            </p>
+            <EditionSwitcher className="flex w-full flex-wrap rounded-xl [&>button]:flex-1 [&>svg]:hidden" />
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function SystemInfoPage() {
   const [systemInfo, setSystemInfo] = React.useState<any>(null);
   const [versionInfo, setVersionInfo] = React.useState<any>(null);
@@ -380,7 +505,11 @@ export default function SystemInfoPage() {
         description={versionInfo?.version ? versionText : undefined}
       />
 
-      <UpgradeCard />
+      <div className="grid gap-4 md:grid-cols-2">
+        <UpgradeCard />
+        <LicenseCard />
+        <TlsListenersCard />
+      </div>
 
       {/* Memory and disk are one meter each; the CPU card is as many meters as the
           machine has cores, so it gets its own full-width row rather than being

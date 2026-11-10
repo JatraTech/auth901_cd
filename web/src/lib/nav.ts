@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import * as Conf from "@/Conf";
 import * as Setting from "@/lib/setting";
+import {canDelegated, isDelegatedAdmin} from "@/lib/delegated-admin";
 import type {Account} from "@/hooks/use-account";
 
 export interface NavItem {
@@ -47,8 +48,34 @@ export function getNavGroups(account: Account | null | undefined): NavGroup[] {
       {key: "/", label: i18next.t("general:Dashboard")},
       {key: "/shortcuts", label: i18next.t("general:Shortcuts")},
       {key: "/apps", label: i18next.t("general:Apps")},
+      ...(Setting.isLocalAdminUser(account) ? [{key: "/editions", label: i18next.t("edition:Editions and features")}] : []),
+      ...(account.pendingAccessReviews > 0 ? [{key: "/my-access-reviews", label: i18next.t("enterprise:My access reviews")}] : []),
     ],
   });
+
+  // a delegated admin is offered only the pages of what they administer
+  if (isDelegatedAdmin(account)) {
+    groups.push({
+      key: "/orgs",
+      label: i18next.t("general:User Management"),
+      icon: LayoutGrid,
+      to: "/users",
+      items: [
+        {key: "/groups", label: i18next.t("general:Groups")},
+        {key: "/users", label: i18next.t("general:Users")},
+      ],
+    });
+    if (canDelegated(account, "applications")) {
+      groups.push({
+        key: "/identity",
+        label: i18next.t("general:Identity"),
+        icon: Lock,
+        to: "/applications",
+        items: [{key: "/applications", label: i18next.t("general:Applications")}],
+      });
+    }
+    return groups;
+  }
 
   groups.push({
     key: "/orgs",
@@ -87,12 +114,15 @@ export function getNavGroups(account: Account | null | undefined): NavGroup[] {
     items: [
       {key: "/roles", label: i18next.t("general:Roles")},
       {key: "/permissions", label: i18next.t("general:Permissions")},
+      {key: "/access-reviews", label: i18next.t("edition:Access reviews")},
       {key: "/models", label: i18next.t("general:Models")},
       {key: "/adapters", label: i18next.t("general:Adapters")},
       {key: "/enforcers", label: i18next.t("general:Enforcers")},
+      {key: "/privileged-accounts", label: i18next.t("pam:Privileged accounts")},
+      {key: "/privileged-access", label: i18next.t("pam:Privileged access")},
     ].filter(
       (item) =>
-        Setting.isLocalAdminUser(account) || !["/models", "/adapters", "/enforcers"].includes(item.key),
+        Setting.isLocalAdminUser(account) || !["/access-reviews", "/models", "/adapters", "/enforcers", "/privileged-accounts"].includes(item.key),
     ),
   });
 
@@ -119,6 +149,7 @@ export function getNavGroups(account: Account | null | undefined): NavGroup[] {
     items: [
       {key: "/sessions", label: i18next.t("general:Sessions")},
       {key: "/records", label: i18next.t("general:Records")},
+      {key: "/compliance", label: i18next.t("general:Compliance")},
       {key: "/tokens", label: i18next.t("general:Tokens")},
       {key: "/verifications", label: i18next.t("general:Verifications")},
     ],
@@ -158,6 +189,7 @@ export function getNavGroups(account: Account | null | undefined): NavGroup[] {
     {key: "/tickets", label: i18next.t("general:Tickets")},
   );
   if (Setting.isAdminUser(account)) {
+    adminItems.push({key: "/radius-clients", label: i18next.t("general:RADIUS Clients")});
     adminItems.push({
       key: "/swagger",
       label: i18next.t("general:Swagger"),

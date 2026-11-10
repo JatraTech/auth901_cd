@@ -32,6 +32,11 @@ import (
 // @Success 200 {array} object.Application The Response object
 // @router /get-applications [get]
 func (c *ApiController) GetApplications() {
+	if scope := c.getDelegatedScope(); scope != nil {
+		c.getDelegatedApplications(scope)
+		return
+	}
+
 	userId := c.GetSessionUsername()
 	owner := c.Ctx.Input.Query("owner")
 	limit := c.Ctx.Input.Query("pageSize")
@@ -123,6 +128,11 @@ func (c *ApiController) GetApplication() {
 
 	clientIp := util.GetClientIpFromRequest(c.Ctx.Request)
 	object.CheckEntryIp(clientIp, nil, application, nil, c.GetAcceptLanguage())
+
+	if scope := c.getDelegatedScope(); scope.Can(object.DelegatedActionApplications) && scope.HasApplication(application) {
+		c.ResponseOk(application)
+		return
+	}
 
 	c.ResponseOk(object.GetMaskedApplication(application, userId))
 }
@@ -249,6 +259,23 @@ func (c *ApiController) UpdateApplication() {
 		return
 	}
 
+	if err = object.CheckApplicationEdition(&application); err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+
+	if err = object.ValidateFormFill(application.FormFill, c.GetAcceptLanguage()); err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+
+	if scope := c.getDelegatedScope(); scope != nil {
+		if err = c.checkDelegatedApplicationUpdate(scope, id, &application); err != nil {
+			c.ResponseError(err.Error())
+			return
+		}
+	}
+
 	columns := []string{}
 	if columnsStr != "" {
 		for _, col := range strings.Split(columnsStr, ",") {
@@ -291,6 +318,16 @@ func (c *ApiController) AddApplication() {
 	}
 
 	if err = object.CheckIpWhitelist(application.IpWhitelist, c.GetAcceptLanguage()); err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+
+	if err = object.CheckApplicationEdition(&application); err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+
+	if err = object.ValidateFormFill(application.FormFill, c.GetAcceptLanguage()); err != nil {
 		c.ResponseError(err.Error())
 		return
 	}

@@ -1,7 +1,7 @@
 import * as React from "react";
 import i18next from "i18next";
-import {ExternalLink, Monitor, Search, ShieldCheck, Smartphone} from "lucide-react";
-import {Link, useNavigate} from "react-router-dom";
+import {ExternalLink, Monitor, Search, ShieldCheck, Smartphone, X} from "lucide-react";
+import {Link, useNavigate, useSearchParams} from "react-router-dom";
 import {Badge} from "@/components/ui/badge";
 import {Button} from "@/components/ui/button";
 import {Card} from "@/components/ui/card";
@@ -16,8 +16,9 @@ import {useAccount} from "@/hooks/use-account";
 import {useRequestOrganization} from "@/hooks/use-organization";
 import * as ApplicationBackend from "@/backend/ApplicationBackend";
 import * as IntegrationBackend from "@/backend/IntegrationBackend";
-import {IntegrationLogo, IntegrationTypes, ThemePreviewMessage, applyTheme, getIntegrationTypeLabel, getMarketplaceSiteUrl, getLocalized} from "@/lib/integration";
+import {IntegrationLogo, IntegrationTypes, ThemePreviewMessage, applyTheme, getActionKind, getIntegrationTypeLabel, getMarketplaceSiteUrl, getLocalized, getActionText} from "@/lib/integration";
 import * as Setting from "@/lib/setting";
+import {getEditionText} from "@/components/common/EditionNotice";
 
 /** The Casdoor Marketplace: browse the catalog and install app integrations, provider templates and themes. */
 export default function MarketplacePage() {
@@ -28,7 +29,10 @@ export default function MarketplacePage() {
   const [index, setIndex] = React.useState<any>(null);
   const [installed, setInstalled] = React.useState<any[]>([]);
   const [type, setType] = React.useState("all");
-  const [search, setSearch] = React.useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [search, setSearch] = React.useState(() => searchParams.get("q") ?? "");
+  // "?edition=Enterprise" lists only the paid entries of that edition, as linked from the editions page
+  const editionFilter = searchParams.get("edition") ?? "";
   const [selected, setSelected] = React.useState<any>(null);
 
   const fetchIndex = React.useCallback((refresh: boolean) => {
@@ -66,6 +70,7 @@ export default function MarketplacePage() {
     return (index?.integrations ?? [])
       .filter((item: any) => IntegrationTypes.includes(item.type))
       .filter((item: any) => type === "all" || item.type === type)
+      .filter((item: any) => !editionFilter || (item.edition ?? "").toLowerCase() === editionFilter.toLowerCase())
       .filter((item: any) => {
         if (!filter) {
           return true;
@@ -73,7 +78,7 @@ export default function MarketplacePage() {
         const text = [item.id, getLocalized(item.name), getLocalized(item.description), ...(item.tags ?? []), ...(item.categories ?? [])].join(" ");
         return text.toLowerCase().includes(filter);
       });
-  }, [index, type, search]);
+  }, [index, type, search, editionFilter]);
 
   const getInstalledCount = (id: string) => installed.filter((integration) => integration.integrationId === id).length;
 
@@ -107,6 +112,20 @@ export default function MarketplacePage() {
             ))}
           </TabsList>
         </Tabs>
+        {editionFilter ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            className="gap-1 rounded-full sm:ml-auto"
+            onClick={() => {
+              searchParams.delete("edition");
+              setSearchParams(searchParams, {replace: true});
+            }}
+          >
+            {getEditionText(editionFilter.charAt(0).toUpperCase() + editionFilter.slice(1).toLowerCase())}
+            <X className="size-3.5" />
+          </Button>
+        ) : null}
         <div className="relative sm:w-72">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input className="pl-8" placeholder={i18next.t("general:Search")} value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -116,9 +135,9 @@ export default function MarketplacePage() {
       {loading && !index ? (
         <Loading />
       ) : integrations.length === 0 ? (
-        <p className="py-16 text-center text-muted-foreground">{i18next.t("general:No data")}</p>
+        <p className="py-16 text-center text-muted-foreground" data-tour="marketplace-items">{i18next.t("general:No data")}</p>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" data-tour="marketplace-items">
           {integrations.map((item: any) => {
             const name = getLocalized(item.name) || item.id;
             const installedCount = getInstalledCount(item.id);
@@ -137,6 +156,7 @@ export default function MarketplacePage() {
                       </div>
                       <div className="mt-0.5 flex flex-wrap gap-1">
                         <Badge variant="secondary">{getIntegrationTypeLabel(item.type)}</Badge>
+                        {item.edition ? <Badge variant="warning">{getEditionText(item.edition)}</Badge> : null}
                         {installedCount > 0 ? <Badge variant="success">{i18next.t("integration:Installed")}{installedCount > 1 ? ` (${installedCount})` : ""}</Badge> : null}
                       </div>
                     </div>
@@ -241,6 +261,7 @@ function InstallDialog({item, organizationName, installed, onClose}: {
   }, [item, application]);
 
   const manifestVariables: any[] = bundle?.manifest?.variables ?? [];
+  const actionKind = getActionKind(bundle);
   const isMissing = !name
     || manifestVariables.some((variable) => variable.required && !variables[variable.name]?.trim())
     || (item.type === "provider" && (!clientId || !clientSecret))
@@ -298,7 +319,7 @@ function InstallDialog({item, organizationName, installed, onClose}: {
         </DialogHeader>
 
         <p className="text-sm text-muted-foreground">{getLocalized(item.description)}</p>
-        <p className="text-sm">{getInstallSummary(item.type, itemName)}</p>
+        <p className="text-sm">{getInstallSummary(item.type, itemName, actionKind)}</p>
 
         <div className={isTheme ? "grid gap-6 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]" : undefined}>
           {error ? (
@@ -361,6 +382,44 @@ function InstallDialog({item, organizationName, installed, onClose}: {
                     />
                   </FieldRow>
                 </>
+              ) : null}
+
+              {item.type === "action" ? (
+                <>
+                  {actionKind === "sms" || actionKind === "push" ? (
+                    <FieldRow label={i18next.t("provider:Client ID")} help={actionKind === "sms" ? i18next.t("integration:SMS action client ID help") : i18next.t("integration:Push action client ID help")}>
+                      <Input value={clientId} onChange={(e) => setClientId(e.target.value)} />
+                    </FieldRow>
+                  ) : null}
+                  {["payment", "sms", "push"].includes(actionKind) ? (
+                    <FieldRow label={i18next.t("provider:Client secret")} help={actionKind === "sms" ? i18next.t("integration:SMS action client secret help") : i18next.t("integration:Action client secret help")}>
+                      <Input type="password" autoComplete="new-password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} />
+                    </FieldRow>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">{i18next.t("integration:Plugin action install help")}</p>
+                  )}
+                  {bundle?.manifest?.permissions?.hosts?.length ? (
+                    <FieldRow label={i18next.t("integration:Allowed hosts")} help={i18next.t("integration:Allowed hosts help")}>
+                      <div className="space-y-0.5">
+                        {bundle.manifest.permissions.hosts.map((host: string) => <div key={host}><code className="font-mono text-xs">{host}</code></div>)}
+                      </div>
+                    </FieldRow>
+                  ) : null}
+                </>
+              ) : null}
+
+              {bundle?.manifest?.downloads?.length ? (
+                <FieldRow label={i18next.t("integration:Downloads")} help={i18next.t("integration:Downloads help")}>
+                  <div className="flex flex-wrap gap-2">
+                    {bundle.manifest.downloads.map((path: string) => (
+                      <Button key={path} variant="outline" size="sm" asChild>
+                        <a href={`${Setting.ServerUrl}/api/download-marketplace-file?owner=${encodeURIComponent(organizationName)}&integrationId=${encodeURIComponent(item.id)}&path=${encodeURIComponent(path)}`}>
+                          {path.split("/").pop()}
+                        </a>
+                      </Button>
+                    ))}
+                  </div>
+                </FieldRow>
               ) : null}
 
               {item.type === "theme" ? (
@@ -462,7 +521,7 @@ function ThemePreview({application}: {application: any}) {
   );
 }
 
-function getInstallSummary(type: string, name: string): string {
+function getInstallSummary(type: string, name: string, actionKind: string): string {
   switch (type) {
   case "app":
     return i18next.t("integration:App install summary").replace("{name}", name);
@@ -470,6 +529,8 @@ function getInstallSummary(type: string, name: string): string {
     return i18next.t("integration:Provider install summary").replace("{name}", name);
   case "theme":
     return i18next.t("integration:Theme install summary");
+  case "action":
+    return getActionText(actionKind, "summary").replace("{name}", name);
   default:
     return "";
   }

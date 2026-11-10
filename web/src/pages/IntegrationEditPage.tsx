@@ -11,15 +11,7 @@ import {Loading} from "@/components/common/Loading";
 import {useAccount} from "@/hooks/use-account";
 import * as ApplicationBackend from "@/backend/ApplicationBackend";
 import * as IntegrationBackend from "@/backend/IntegrationBackend";
-import {
-  IntegrationLogo,
-  getMarketplaceSiteUrl,
-  fillVariables,
-  getIntegrationTypeLabel,
-  getLocalized,
-  parseBundle,
-  renderInlineText,
-} from "@/lib/integration";
+import {IntegrationLogo, getMarketplaceSiteUrl, fillVariables, getIntegrationTypeLabel, getLocalized, getActionKind, parseBundle, renderInlineText, getActionText} from "@/lib/integration";
 import * as Setting from "@/lib/setting";
 
 /** An installed integration: what it created, and the rest of the setup with this Casdoor's own values filled in. */
@@ -114,6 +106,15 @@ export default function IntegrationEditPage() {
       hidden: !integration.provider,
       children: <Link className="underline-offset-4 hover:underline" to={`/providers/${integration.owner}/${integration.provider}`}>{integration.provider}</Link>,
     },
+    {
+      label: i18next.t("integration:Allowed hosts"),
+      hidden: integration.type !== "action",
+      children: (
+        <div className="space-y-0.5">
+          {(bundle?.manifest?.permissions?.hosts ?? []).map((host: string) => <div key={host}><code className="font-mono text-xs">{host}</code></div>)}
+        </div>
+      ),
+    },
     {label: i18next.t("provider:Client ID"), hidden: !application, children: <code className="font-mono text-xs">{application?.clientId}</code>},
     {
       label: i18next.t("application:Redirect URLs"),
@@ -153,7 +154,7 @@ export default function IntegrationEditPage() {
           <ConfirmButton
             variant="outline"
             title={i18next.t("integration:Uninstall")}
-            description={getUninstallDescription(integration)}
+            description={getUninstallDescription(integration, getActionKind(bundle))}
             confirmText={i18next.t("integration:Uninstall")}
             onConfirm={uninstall}
           >
@@ -165,7 +166,7 @@ export default function IntegrationEditPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">{i18next.t("integration:Installed in Casdoor")}</CardTitle>
-          <CardDescription>{getInstalledDescription(integration)}</CardDescription>
+          <CardDescription>{getInstalledDescription(integration, getActionKind(bundle))}</CardDescription>
         </CardHeader>
         <CardContent>
           <DescriptionList items={items} />
@@ -252,7 +253,7 @@ function CodeBlock({content}: {content: string}) {
   );
 }
 
-function getInstalledDescription(integration: any): string {
+function getInstalledDescription(integration: any, actionKind: string): string {
   switch (integration.type) {
   case "app":
     return i18next.t("integration:App installed description");
@@ -260,12 +261,14 @@ function getInstalledDescription(integration: any): string {
     return integration.application ? i18next.t("integration:Provider installed in application description") : i18next.t("integration:Provider installed description");
   case "theme":
     return i18next.t("integration:Theme installed description");
+  case "action":
+    return getActionText(actionKind, "installed");
   default:
     return "";
   }
 }
 
-function getUninstallDescription(integration: any): string {
+function getUninstallDescription(integration: any, actionKind: string): string {
   switch (integration.type) {
   case "app":
     return i18next.t("integration:Uninstall app description").replace("{name}", integration.application);
@@ -273,6 +276,8 @@ function getUninstallDescription(integration: any): string {
     return i18next.t("integration:Uninstall provider description").replace("{name}", integration.provider);
   case "theme":
     return i18next.t("integration:Uninstall theme description").replace("{name}", integration.application);
+  case "action":
+    return getActionText(actionKind, "uninstall").replace("{name}", integration.provider || integration.name);
   default:
     return "";
   }

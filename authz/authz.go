@@ -92,7 +92,27 @@ p, *, *, POST, /api/set-password, *, *
 p, *, *, GET, /api/get-init-admin-status, *, *
 p, *, *, POST, /api/init-admin-password, *, *
 p, *, *, POST, /api/send-verification-code, *, *
+p, *, *, POST, /api/mfa/push/send, *, *
+p, *, *, GET, /api/get-user-personal-info, *, *
+p, *, *, GET, /api/get-mcp-records, *, *
+p, *, *, GET, /api/get-form-fill-sites, *, *
+p, *, *, GET, /api/get-form-fill-account, *, *
+p, *, *, POST, /api/save-form-fill-account, *, *
+p, *, *, GET, /api/get-privileged-access, *, *
+p, *, *, POST, /api/request-privileged-access, *, *
+p, *, *, POST, /api/approve-privileged-request, *, *
+p, *, *, POST, /api/reject-privileged-request, *, *
+p, *, *, POST, /api/cancel-privileged-request, *, *
+p, *, *, POST, /api/return-privileged-request, *, *
+p, *, *, POST, /api/reveal-privileged-password, *, *
+p, *, *, GET, /api/get-my-access-review-items, *, *
+p, *, *, POST, /api/decide-access-review-items, *, *
+p, *, *, GET, /api/export-own-data, *, *
+p, *, *, POST, /api/delete-own-account, *, *
+p, *, *, GET, /api/mfa/push/challenge, *, *
+p, *, *, POST, /api/mfa/push/answer, *, *
 p, *, *, GET, /api/get-captcha, *, *
+p, *, *, GET, /api/get-altcha-challenge, *, *
 p, *, *, POST, /api/verify-captcha, *, *
 p, *, *, POST, /api/verify-code, *, *
 p, *, *, POST, /api/v1/traces, *, *
@@ -143,7 +163,10 @@ p, *, *, GET, /api/get-all-objects, *, *
 p, *, *, GET, /api/get-all-actions, *, *
 p, *, *, GET, /api/get-all-roles, *, *
 p, *, *, GET, /api/get-invitation-info, *, *
+p, *, *, GET, /api/get-license, *, *
 p, *, *, GET, /api/faceid-signin-begin, *, *
+p, *, *, GET, /api/login/cert, *, *
+p, *, *, GET, /api/get-cert-challenge, *, *
 p, *, *, GET, /api/kerberos-login, *, *
 p, *, *, POST, /api/grant-consent, *, *
 p, *, *, POST, /api/revoke-consent, *, *
@@ -168,10 +191,14 @@ p, *, *, POST, /api/revoke-consent, *, *
 
 func IsAllowed(subOwner string, subName string, method string, urlPath string, objOwner string, objName string, extraInfo map[string]interface{}) (bool, error) {
 	if urlPath == "/api/mcp" {
-		if detailPath, ok := extraInfo["detailPathUrl"].(string); ok {
-			if detailPath == "initialize" || detailPath == "notifications/initialized" || detailPath == "ping" || detailPath == "tools/list" {
-				return true, nil
-			}
+		// every MCP request needs a credential, so that MCP clients start the OAuth flow when they connect
+		if subOwner == "anonymous" && subName == "anonymous" {
+			return false, nil
+		}
+
+		// only a tool call acts on objects, the MCP server answers the other methods by itself
+		if detailPath, _ := extraInfo["detailPathUrl"].(string); detailPath != "tools/call" {
+			return true, nil
 		}
 	}
 

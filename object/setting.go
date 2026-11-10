@@ -16,6 +16,7 @@ package object
 
 import (
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/casdoor/casdoor/conf"
@@ -45,6 +46,28 @@ type Setting struct {
 
 	// hides the links to Casdoor Cloud that the console shows its admins
 	HideCloudPromotion bool `json:"hideCloudPromotion"`
+
+	// trusted HTML (scripts, styles, meta tags) put into the <head> of every page of every organization
+	HeadHtml string `xorm:"mediumtext" json:"headHtml"`
+
+	// identifies this Casdoor (its database) to the license server, generated once and never edited
+	InstanceId string `xorm:"varchar(100)" json:"instanceId"`
+}
+
+type headHtmlState struct {
+	html        string
+	updatedTime time.Time
+}
+
+var currentHeadHtml atomic.Pointer[headHtmlState]
+
+// GetHeadHtml returns the head HTML of the global setting and when the setting was last saved
+func GetHeadHtml() (string, time.Time) {
+	state := currentHeadHtml.Load()
+	if state == nil {
+		return "", time.Time{}
+	}
+	return state.html, state.updatedTime
 }
 
 func GetSetting() (*Setting, error) {
@@ -77,6 +100,7 @@ func UpdateSetting(setting *Setting) (bool, error) {
 	setting.Name = settingName
 	setting.CreatedTime = oldSetting.CreatedTime
 	setting.UpdatedTime = util.GetCurrentTime()
+	setting.InstanceId = oldSetting.InstanceId
 
 	affected, err := ormer.Engine.ID(core.PK{settingOwner, settingName}).AllCols().Update(setting)
 	if err != nil {
@@ -114,6 +138,9 @@ func (setting *Setting) apply() {
 	ormer.Engine.SetConnMaxLifetime(time.Duration(setting.DbConnMaxLifetime) * time.Second)
 
 	conf.SetHideCloudPromotion(setting.HideCloudPromotion)
+
+	updatedTime, _ := time.Parse(time.RFC3339, setting.UpdatedTime)
+	currentHeadHtml.Store(&headHtmlState{html: setting.HeadHtml, updatedTime: updatedTime})
 }
 
 func initBuiltInSetting() *Setting {
@@ -143,6 +170,7 @@ func initBuiltInSetting() *Setting {
 // another Casdoor instance sharing the same database also takes effect here
 func InitSetting() {
 	initBuiltInSetting().apply()
+	initLicenseReporter()
 
 	util.SafeGoroutine(func() {
 		ticker := time.NewTicker(time.Minute)

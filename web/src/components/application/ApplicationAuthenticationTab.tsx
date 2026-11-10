@@ -6,6 +6,7 @@ import {TagsInput} from "@/components/common/TagsInput";
 import {FormRow} from "@/components/crud/FormRow";
 import type {ApplicationTabProps} from "@/components/application/types";
 import * as Setting from "@/lib/setting";
+import {EditionNotice} from "@/components/common/EditionNotice";
 
 /** The "Authentication" tab: what the sign-in session allows and where it sends the user. */
 export function ApplicationAuthenticationTab({application, updateField}: ApplicationTabProps) {
@@ -49,6 +50,7 @@ export function ApplicationAuthenticationTab({application, updateField}: Applica
           checked={!!application.enableExclusiveSignin}
           onCheckedChange={(v) => updateField("enableExclusiveSignin", v)}
         />
+        {application.enableExclusiveSignin ? <EditionNotice /> : null}
       </FormRow>
       {application.enableExclusiveSignin ? (
         <FormRow labelKey="application:Max sessions">
@@ -76,6 +78,16 @@ export function ApplicationAuthenticationTab({application, updateField}: Applica
           />
         </FormRow>
       ) : null}
+      <FormRow labelKey="organization:Inactive timeout minutes">
+        <Input
+          type="number"
+          min={0}
+          placeholder="0"
+          value={application.inactiveTimeoutMinutes || ""}
+          onChange={(e) => updateField("inactiveTimeoutMinutes", Setting.myParseInt(e.target.value))}
+        />
+        {application.inactiveTimeoutMinutes > 0 ? <EditionNotice /> : null}
+      </FormRow>
       <FormRow labelKey="application:Signin session">
         <Switch
           checked={!!application.enableSigninSession}

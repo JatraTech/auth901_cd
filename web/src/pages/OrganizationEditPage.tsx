@@ -29,8 +29,11 @@ import {TransactionTable} from "@/components/user/TransactionTable";
 import * as OrganizationBackend from "@/backend/OrganizationBackend";
 import * as TransactionBackend from "@/backend/TransactionBackend";
 import * as Setting from "@/lib/setting";
+import {EditionNotice} from "@/components/common/EditionNotice";
+import {SecurityPolicyTab} from "@/components/organization/SecurityPolicyTab";
+import {EnterprisePolicyTab} from "@/components/organization/EnterprisePolicyTab";
 
-const PASSWORD_TYPES = ["plain", "salt", "sha512-salt", "md5-salt", "bcrypt", "pbkdf2-salt", "argon2id", "pbkdf2-django"];
+const PASSWORD_TYPES = ["plain", "salt", "sha512-salt", "md5-salt", "bcrypt", "pbkdf2-salt", "argon2id", "pbkdf2-django", "pbkdf2-sm3"];
 const TOKEN_FORMATS = ["JWT", "JWT-Empty", "JWT-Custom", "JWT-Standard"];
 const OBFUSCATOR_TYPES = ["Plain", "AES", "DES"];
 const VIEW_RULES = ["Public", "Self", "Admin"];
@@ -185,6 +188,8 @@ export default function OrganizationEditPage() {
           <TabsTrigger value="basic">{i18next.t("application:Basic")}</TabsTrigger>
           <TabsTrigger value="password">{i18next.t("general:Password type")}</TabsTrigger>
           <TabsTrigger value="account">{i18next.t("organization:Account items")}</TabsTrigger>
+          <TabsTrigger value="security">{i18next.t("application:Security")}</TabsTrigger>
+          <TabsTrigger value="enterprise">{i18next.t("general:Compliance")}</TabsTrigger>
           <TabsTrigger value="advanced">{i18next.t("provider:Advanced")}</TabsTrigger>
         </TabsList>
 
@@ -315,6 +320,7 @@ export default function OrganizationEditPage() {
           </FormRow>
           <FormRow labelKey="organization:Enable exclusive signin across applications">
             <Switch checked={!!organization.enableExclusiveSignin} onCheckedChange={(v) => update("enableExclusiveSignin", v)} />
+            {organization.enableExclusiveSignin ? <EditionNotice /> : null}
           </FormRow>
           {organization.enableExclusiveSignin ? (
             <FormRow labelKey="application:Max sessions">
@@ -339,6 +345,7 @@ export default function OrganizationEditPage() {
               onChange={(value) => update("passwordType", value)}
               options={PASSWORD_TYPES.map((item) => ({id: item, name: item}))}
             />
+            {organization.passwordType === "pbkdf2-sm3" ? <EditionNotice edition="Enterprise" /> : null}
           </FormRow>
           <FormRow labelKey="general:Password salt">
             <Input value={organization.passwordSalt ?? ""} onChange={(e) => update("passwordSalt", e.target.value)} />
@@ -494,6 +501,14 @@ export default function OrganizationEditPage() {
               ]}
             />
           </FormRow>
+        </TabsContent>
+
+        <TabsContent value="security" className={formGridClass}>
+          <SecurityPolicyTab owner={organization.name} policy={organization.securityPolicy} onChange={(policy) => update("securityPolicy", policy)} />
+        </TabsContent>
+
+        <TabsContent value="enterprise" className={formGridClass}>
+          <EnterprisePolicyTab owner={organization.name} policy={organization.enterprisePolicy} onChange={(policy) => update("enterprisePolicy", policy)} />
         </TabsContent>
 
         <TabsContent value="advanced" className={formGridClass}>
@@ -722,6 +737,7 @@ export default function OrganizationEditPage() {
                 },
               ]}
             />
+            {(organization.idJagIssuers ?? []).length > 0 ? <EditionNotice /> : null}
           </FormRow>
           <FormRow labelKey="organization:Admin navbar items" block>
             <NavItemTree

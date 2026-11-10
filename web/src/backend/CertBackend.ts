@@ -89,3 +89,45 @@ export function refreshDomainExpire(owner, name) {
     credentials: "include",
   }).then(res => res.json());
 }
+
+export function rotateCert(owner: string, name: string) {
+  return fetch(`${Setting.ServerUrl}/api/rotate-cert?id=${owner}/${encodeURIComponent(name)}`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Accept-Language": Setting.getAcceptLanguage(),
+    },
+  }).then(res => res.json());
+}
+
+export function getHsmStatus(connect: boolean) {
+  return fetch(`${Setting.ServerUrl}/api/get-hsm-status?connect=${connect}`, {
+    method: "GET",
+    credentials: "include",
+    headers: {
+      "Accept-Language": Setting.getAcceptLanguage(),
+    },
+  }).then(res => res.json());
+}
+
+export function generateHsmCert(cert) {
+  return fetch(`${Setting.ServerUrl}/api/generate-hsm-cert`, {
+    method: "POST",
+    credentials: "include",
+    body: JSON.stringify(cert),
+    headers: {
+      "Content-Type": "application/json",
+      "Accept-Language": Setting.getAcceptLanguage(),
+    },
+  }).then(res => res.json());
+}
+
+export function testHsmCert(owner: string, name: string) {
+  return fetch(`${Setting.ServerUrl}/api/test-hsm-cert?id=${owner}/${encodeURIComponent(name)}`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Accept-Language": Setting.getAcceptLanguage(),
+    },
+  }).then(res => res.json());
+}

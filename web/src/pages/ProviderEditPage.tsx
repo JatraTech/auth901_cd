@@ -4,6 +4,7 @@ import {useNavigate, useParams} from "react-router-dom";
 import {UnauthorizedPage} from "@/components/common/UnauthorizedPage";
 import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
+import {EditionNotice} from "@/components/common/EditionNotice";
 import {Switch} from "@/components/ui/switch";
 import {Textarea} from "@/components/ui/textarea";
 import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from "@/components/ui/table";
@@ -21,9 +22,11 @@ import {useAccount} from "@/hooks/use-account";
 import {useEditRecord} from "@/hooks/use-edit-record";
 import {useOrganizationOptions} from "@/hooks/use-options";
 import * as CertBackend from "@/backend/CertBackend";
+import * as IntegrationBackend from "@/backend/IntegrationBackend";
 import * as ProviderBackend from "@/backend/ProviderBackend";
 import * as ServerBackend from "@/backend/ServerBackend";
 import {submitEdit} from "@/lib/crud";
+import {getActionKind, parseBundle} from "@/lib/integration";
 import * as ProviderTest from "@/lib/provider-test";
 import * as Setting from "@/lib/setting";
 import {authConfig} from "@/auth/Auth";
@@ -74,7 +77,8 @@ const SYSLOG_FACILITIES = [
   "auth", "authpriv", "user", "daemon", "security",
   "local0", "local1", "local2", "local3", "local4", "local5", "local6", "local7",
 ];
-const SYSLOG_FORMATS = ["RFC 5424", "RFC 3164"];
+// CEF and LEEF, which SIEM and situational awareness platforms read, need an enterprise edition license
+const SYSLOG_FORMATS = ["RFC 5424", "RFC 3164", "CEF", "LEEF"];
 
 const SCAN_HOST_OPTIONS = ["127.0.0.1/32", "10.0.0.0/24", "172.16.0.0/24", "192.168.1.0/24"];
 const SCAN_PORT_OPTIONS = ["80", "3000", "8080"];
@@ -118,8 +122,10 @@ function normalizeAndJoin(values: string[]) {
   return (values || []).map(item => `${item}`.trim()).filter(item => item !== "").join(",");
 }
 
-function getProviderSubTypeOptions(type: string) {
-  if (type === "Aliyun Captcha") {
+function getProviderSubTypeOptions(category: string, type: string) {
+  if (category === "OAuth" && type === "PayPal") {
+    return [{id: "Live", name: "Live"}, {id: "Sandbox", name: "Sandbox"}];
+  } else if (type === "Aliyun Captcha") {
     return [
       {id: "Embed", name: "Embed"},
       {id: "Popup", name: "Popup"},
@@ -154,7 +160,7 @@ function getClientIdLabel(provider: any): Label {
       ? label(i18next.t("provider:Service ID identifier"), i18next.t("provider:Service ID identifier - Tooltip"))
       : label(i18next.t("provider:Client ID"), i18next.t("provider:Client ID - Tooltip"));
   } else if (provider.category === "Email") {
-    return provider.type === "XOauth2"
+    return provider.type === "Microsoft 365"
       ? label(i18next.t("provider:Client ID"), i18next.t("provider:Client ID - Tooltip"))
       : label(i18next.t("signup:Username"), i18next.t("signup:Username - Tooltip"));
   } else if (provider.category === "SMS") {
@@ -169,6 +175,9 @@ function getClientIdLabel(provider: any): Label {
     }
     return label(i18next.t("provider:Client ID"), i18next.t("provider:Client ID - Tooltip"));
   } else if (provider.category === "Captcha") {
+    if (provider.type === "ALTCHA") {
+      return label(i18next.t("provider:Api Key"), i18next.t("provider:Api Key - Tooltip"));
+    }
     return provider.type === "Aliyun Captcha"
       ? label(i18next.t("general:Access key"), i18next.t("general:Access key - Tooltip"))
       : label(i18next.t("provider:Site key"), i18next.t("provider:Site key - Tooltip"));
@@ -194,7 +203,7 @@ function getClientSecretLabel(provider: any): Label {
       ? label(i18next.t("provider:Service account JSON"), i18next.t("provider:Service account JSON - Tooltip"))
       : label(i18next.t("provider:Client secret"), i18next.t("provider:Client secret - Tooltip"));
   } else if (provider.category === "Email") {
-    if (provider.type === "XOauth2") {
+    if (provider.type === "Microsoft 365") {
       return label(i18next.t("provider:Client secret"), i18next.t("provider:Client secret - Tooltip"));
     }
     return ["Azure ACS", "SendGrid", "Resend"].includes(provider.type)
@@ -270,6 +279,9 @@ function getAppIdLabel(provider: any): Label | null {
     } else if (provider.type === "AzureADB2C") {
       return label(i18next.t("provider:User flow"), i18next.t("provider:User flow - Tooltip"));
     }
+  } else if (provider.category === "Notification" && provider.type === "Plugin") {
+    // the agent ID of the WeCom or DingTalk app that sends the sign-in confirmations
+    return label(i18next.t("provider:Agent ID"), i18next.t("provider:Agent ID - Tooltip"));
   } else if (provider.category === "SMS") {
     if (provider.type === "Twilio SMS" || provider.type === "Azure ACS") {
       return label(i18next.t("provider:Sender number"), i18next.t("provider:Sender number - Tooltip"));
@@ -395,6 +407,7 @@ export default function ProviderEditPage() {
   const organizations = useOrganizationOptions();
   const [providers, setProviders] = React.useState<any[]>([]);
   const [certs, setCerts] = React.useState<any[]>([]);
+  const [actions, setActions] = React.useState<any[]>([]);
   const [saving, setSaving] = React.useState(false);
 
   const [nameNotUserEdited, setNameNotUserEdited] = React.useState(false);
@@ -449,6 +462,18 @@ export default function ProviderEditPage() {
     getProviders(owner);
     getCerts(owner);
   }, [owner, getProviders, getCerts]);
+
+  const isPlugin = provider?.type === "Plugin";
+  React.useEffect(() => {
+    if (!isPlugin) {
+      return;
+    }
+    IntegrationBackend.getIntegrations(owner).then((res: any) => {
+      if (res.status === "ok") {
+        setActions((res.data ?? []).filter((integration: any) => integration.type === "action"));
+      }
+    });
+  }, [owner, isPlugin]);
 
   // the name/display name keep following category+type until the user types their own
   const initializedRef = React.useRef(false);
@@ -683,7 +708,7 @@ export default function ProviderEditPage() {
   }
 
   const certOptions = certs.map((cert: any) => ({value: cert.name, label: cert.name}));
-  const subTypeOptions = getProviderSubTypeOptions(provider.type);
+  const subTypeOptions = getProviderSubTypeOptions(provider.category, provider.type);
 
   const onChangeCategory = (value: string) => {
     const patch: Record<string, any> = {category: value};
@@ -773,10 +798,9 @@ export default function ProviderEditPage() {
     } else if (value === "Custom HTTP Email") {
       patch.endpoint = "https://example.com/send-custom-http-email";
       patch.method = "POST";
-    } else if (value === "XOauth2") {
+    } else if (value === "Microsoft 365") {
       patch.host = "smtp.office365.com";
       patch.port = 587;
-      patch.sslMode = "Auto";
       patch.customTokenUrl = "https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token";
       patch.scopes = "https://outlook.office365.com/.default";
     } else if (value === "Custom HTTP") {
@@ -795,9 +819,14 @@ export default function ProviderEditPage() {
       }
     } else if (value === "Security Scan") {
       patch.subType = "Site";
+    } else if (value === "PayPal" && provider.category === "OAuth") {
+      patch.subType = "Live";
     } else if (value === "Aliyun Captcha") {
       // Popup stays opt-in: only Alibaba Cloud's traceless scenes require it
       patch.subType = "Embed";
+    } else if (value === "ALTCHA" && !provider.clientSecret) {
+      // the HMAC key Casdoor signs its own challenges with
+      patch.clientSecret = Array.from(crypto.getRandomValues(new Uint8Array(32)), b => b.toString(16).padStart(2, "0")).join("");
     }
     if (nameNotUserEdited) {
       patch.name = getAutoProviderName(provider.category, value, "");
@@ -884,8 +913,29 @@ export default function ProviderEditPage() {
     </React.Fragment>
   );
 
+  // an OAuth provider of type Plugin signs in through an installed action of kind "idp", its authorization URL is a
+  // template with {clientId}, {redirectUri}, {state} and {scope}
+  const renderOAuthPluginFields = () => (
+    <React.Fragment>
+      {renderActionRow()}
+      <FormRow labelKey="provider:Auth URL" tooltip={i18next.t("provider:Plugin auth URL - Tooltip")}>
+        <Input value={provider.customAuthUrl ?? ""} onChange={(e) => updateProviderField("customAuthUrl", e.target.value)} />
+      </FormRow>
+      <FormRow labelKey="provider:Scope">
+        <Input value={provider.scopes ?? ""} onChange={(e) => updateProviderField("scopes", e.target.value)} />
+      </FormRow>
+      <FormRow labelKey="general:Host">
+        <Input value={provider.host ?? ""} onChange={(e) => updateProviderField("host", e.target.value)} />
+      </FormRow>
+      <FormRow labelKey="system:License">
+        <EditionNotice edition="Enterprise" />
+      </FormRow>
+    </React.Fragment>
+  );
+
   const renderOAuthFields = () => (
     <React.Fragment>
+      {provider.type === "Plugin" ? renderOAuthPluginFields() : null}
       <FormRow labelKey="provider:Email regex">
         <Textarea rows={4} value={provider.emailRegex ?? ""} onChange={(e) => updateProviderField("emailRegex", e.target.value)} />
       </FormRow>
@@ -1025,12 +1075,7 @@ export default function ProviderEditPage() {
           </FormRow>
         </React.Fragment>
       ) : null}
-      {provider.type !== "XOauth2" ? (
-        <FormRow labelKey="provider:Enable proxy">
-          <Switch checked={!!provider.enableProxy} onCheckedChange={(v) => updateProviderField("enableProxy", v)} />
-        </FormRow>
-      ) : null}
-      {provider.type === "XOauth2" ? (
+      {provider.type === "Microsoft 365" ? (
         <React.Fragment>
           <FormRow labelKey="provider:Token URL">
             <Input value={provider.customTokenUrl ?? ""} onChange={(e) => updateProviderField("customTokenUrl", e.target.value)} />
@@ -1040,6 +1085,9 @@ export default function ProviderEditPage() {
           </FormRow>
         </React.Fragment>
       ) : null}
+      <FormRow labelKey="provider:Enable proxy">
+        <Switch checked={!!provider.enableProxy} onCheckedChange={(v) => updateProviderField("enableProxy", v)} />
+      </FormRow>
       {provider.type === "Custom HTTP Email" ? (
         <React.Fragment>
           {renderHttpRows(HTTP_METHODS)}
@@ -1141,8 +1189,29 @@ export default function ProviderEditPage() {
     </React.Fragment>
   );
 
+  // the actions of the provider's kind installed from the Marketplace, for a provider of type Plugin
+  const renderActionRow = () => {
+    if (provider.type !== "Plugin") {
+      return null;
+    }
+    const kinds: Record<string, string> = {"SMS": "sms", "Notification": "push", "OAuth": "idp", "ID Verification": "idv"};
+    const kind = kinds[provider.category] ?? "payment";
+    return (
+      <FormRow label={i18next.t("general:Action")} tooltip={i18next.t("provider:Action - Tooltip")}>
+        <SelectField
+          value={provider.subType ?? ""}
+          onChange={(v) => updateProviderField("subType", v)}
+          options={actions
+            .filter((integration: any) => getActionKind(parseBundle(integration.bundle)) === kind)
+            .map((integration: any) => ({id: integration.name, name: `${integration.displayName} (${integration.name})`}))}
+        />
+      </FormRow>
+    );
+  };
+
   const renderSmsFields = () => (
     <React.Fragment>
+      {renderActionRow()}
       {!SMS_PROVIDERS_WITHOUT_SIGN_NAME.includes(provider.type) ? (
         <FormRow labelKey="provider:Sign Name">
           <Input value={provider.signName ?? ""} onChange={(e) => updateProviderField("signName", e.target.value)} />
@@ -1212,6 +1281,7 @@ export default function ProviderEditPage() {
     const receiverLabel = getReceiverLabel(provider);
     return (
       <React.Fragment>
+        {renderActionRow()}
         {provider.type === "CUCloud" ? (
           <FormRow labelKey="provider:Region ID">
             <Input value={provider.regionId ?? ""} onChange={(e) => updateProviderField("regionId", e.target.value)} />
@@ -1312,6 +1382,7 @@ export default function ProviderEditPage() {
           onChange={(v) => updateProviderField("templateCode", v)}
           options={SYSLOG_FORMATS.map((item) => ({id: item, name: item}))}
         />
+        {provider.templateCode === "CEF" || provider.templateCode === "LEEF" ? <EditionNotice edition="Enterprise" /> : null}
       </FormRow>
       <FormRow labelKey="general:State">
         <SelectField
@@ -1600,7 +1671,8 @@ export default function ProviderEditPage() {
           <SearchableSelect value={provider.metadata ?? ""} onChange={(v) => updateProviderField("metadata", v)} options={certOptions} />
         </FormRow>
       ) : null}
-      {["GC", "FastSpring", "Polar"].includes(provider.type) ? (
+      {renderActionRow()}
+      {["GC", "FastSpring", "Polar", "Plugin"].includes(provider.type) ? (
         <FormRow label={i18next.t("general:Host")} tooltip={i18next.t("provider:Host - Tooltip")}>
           <Input value={provider.host ?? ""} onChange={(e) => updateProviderField("host", e.target.value)} />
         </FormRow>
@@ -1829,7 +1901,24 @@ export default function ProviderEditPage() {
       {provider.category === "Payment" ? renderPaymentFields() : null}
       {provider.category === "Storage" ? renderStorageFields() : null}
       {provider.category === "Face ID" ? renderEndpointOnlyField() : null}
-      {provider.category === "ID Verification" ? renderEndpointOnlyField() : null}
+      {provider.category === "Captcha" && provider.type === "ALTCHA" ? (
+        <FormRow label={i18next.t("provider:Endpoint")} tooltip={i18next.t("provider:Endpoint - Tooltip")}>
+          <Input
+            value={provider.endpoint ?? ""}
+            placeholder="https://gatecha.example.com/api/v1"
+            onChange={(e) => updateProviderField("endpoint", e.target.value)}
+          />
+        </FormRow>
+      ) : null}
+      {provider.category === "ID Verification" && provider.type === "Plugin" ? (
+        <React.Fragment>
+          {renderActionRow()}
+          <FormRow labelKey="system:License">
+            <EditionNotice edition="Enterprise" />
+          </FormRow>
+        </React.Fragment>
+      ) : null}
+      {provider.category === "ID Verification" && provider.type !== "Plugin" ? renderEndpointOnlyField() : null}
 
       {provider.category !== "Log" && provider.category !== "Audit" ? (
         <FormRow block labelKey="provider:Provider URL">

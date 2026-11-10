@@ -58,6 +58,10 @@ var secretRecordQueries = append([]string{"id_token_hint"}, secretRecordKeys...)
 var alwaysLoggedActions = map[string]bool{
 	"logout":     true,
 	"sso-logout": true,
+	// handing out the password of a managed account
+	"get-form-fill-account": true,
+	// handing out the password of a privileged account
+	"reveal-privileged-password": true,
 }
 
 func init() {
@@ -91,6 +95,10 @@ type Record struct {
 	Detail string `xorm:"varchar(100)" json:"detail"`
 
 	IsTriggered bool `json:"isTriggered"`
+
+	// the hash chain of an organization with tamper-proof records, see record_chain.go
+	PrevHash string `xorm:"varchar(100)" json:"prevHash"`
+	Hash     string `xorm:"varchar(100)" json:"hash"`
 }
 
 type Response struct {
@@ -258,7 +266,7 @@ func AddRecord(record *Record) bool {
 		fmt.Println(errWebhook)
 	}
 
-	affected, err := addRecord(record)
+	affected, err := addChainedRecord(record)
 	if err != nil {
 		panic(err)
 	}

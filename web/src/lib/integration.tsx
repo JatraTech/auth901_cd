@@ -6,7 +6,7 @@ export function getMarketplaceSiteUrl(): string {
   return i18next.language?.startsWith("zh") ? "https://marketplace.casdoor.cn/zh" : "https://marketplace.casdoor.com";
 }
 
-export const IntegrationTypes = ["app", "provider", "theme"] as const;
+export const IntegrationTypes = ["app", "provider", "theme", "action"] as const;
 
 export function getIntegrationTypeLabel(type: string): string {
   switch (type) {
@@ -92,6 +92,11 @@ export function parseBundle(bundle: string | undefined | null): any {
   }
 }
 
+/** "payment" or "sms": the kind of provider an action is, from the action.json of its bundle */
+export function getActionKind(bundle: any): string {
+  return bundle?.files?.["action.json"]?.kind ?? "payment";
+}
+
 export function IntegrationLogo({logo, name, className = "size-10"}: {logo?: string; name: string; className?: string}) {
   const [failed, setFailed] = React.useState(false);
   if (logo && !failed) {
@@ -102,4 +107,21 @@ export function IntegrationLogo({logo, name, className = "size-10"}: {logo?: str
       {(name || "?").slice(0, 1).toUpperCase()}
     </div>
   );
+}
+
+const ACTION_TEXT_KEYS: Record<string, {summary: string; installed: string; uninstall: string}> = {
+  payment: {summary: "integration:Action install summary", installed: "integration:Action installed description", uninstall: "integration:Uninstall action description"},
+  sms: {summary: "integration:SMS action install summary", installed: "integration:SMS action installed description", uninstall: "integration:Uninstall SMS action description"},
+  push: {summary: "integration:Push action install summary", installed: "integration:Push action installed description", uninstall: "integration:Uninstall push action description"},
+  "syncer": {summary: "integration:Syncer action install summary", installed: "integration:Syncer action installed description", uninstall: "integration:Uninstall syncer action description"},
+  "password-check": {summary: "integration:Password check action install summary", installed: "integration:Password check action installed description", uninstall: "integration:Uninstall password check action description"},
+  "password-migration": {summary: "integration:Password migration action install summary", installed: "integration:Password migration action installed description", uninstall: "integration:Uninstall password migration action description"},
+  idp: {summary: "integration:Sign-in action install summary", installed: "integration:Sign-in action installed description", uninstall: "integration:Uninstall sign-in action description"},
+  idv: {summary: "integration:ID verification action install summary", installed: "integration:ID verification action installed description", uninstall: "integration:Uninstall ID verification action description"},
+  cert: {summary: "integration:Certificate verifier action install summary", installed: "integration:Certificate verifier action installed description", uninstall: "integration:Uninstall certificate verifier action description"},
+};
+
+/** The install summary, the description after installing or the uninstall warning of an action of the kind. */
+export function getActionText(kind: string, which: "summary" | "installed" | "uninstall"): string {
+  return i18next.t((ACTION_TEXT_KEYS[kind] ?? ACTION_TEXT_KEYS.payment)[which]);
 }

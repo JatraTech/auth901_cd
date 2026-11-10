@@ -66,6 +66,8 @@ function getNavItemNodes(): TreeNode[] {
             {key: "/models", title: i18next.t("general:Models")},
             {key: "/adapters", title: i18next.t("general:Adapters")},
             {key: "/enforcers", title: i18next.t("general:Enforcers")},
+            {key: "/privileged-accounts", title: i18next.t("pam:Privileged accounts")},
+            {key: "/privileged-access", title: i18next.t("pam:Privileged access")},
           ],
         },
         {
@@ -105,6 +107,7 @@ function getNavItemNodes(): TreeNode[] {
             {key: "/webhooks", title: i18next.t("general:Webhooks")},
             {key: "/webhook-events", title: i18next.t("general:Webhook Events")},
             {key: "/tickets", title: i18next.t("general:Tickets")},
+            {key: "/radius-clients", title: i18next.t("general:RADIUS Clients")},
             {key: "/swagger", title: i18next.t("general:Swagger")},
           ],
         },

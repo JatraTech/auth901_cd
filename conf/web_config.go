@@ -19,6 +19,13 @@ import "sync/atomic"
 // hideCloudPromotion mirrors the global setting of the same name, which lives in the database this package cannot read
 var hideCloudPromotion atomic.Bool
 
+// getEdition is set by the edition package, which reads the license through this package
+var getEdition func() string
+
+func SetEditionGetter(getter func() string) {
+	getEdition = getter
+}
+
 func SetHideCloudPromotion(hide bool) {
 	hideCloudPromotion.Store(hide)
 }
@@ -33,7 +40,9 @@ type WebConfig struct {
 	MaxItemsForFlatMenu int64  `json:"maxItemsForFlatMenu"`
 	ThemeShowcase       bool   `json:"themeShowcase"`
 	MarketplaceUrl      string `json:"marketplaceUrl"`
+	EditionDemoUrls     string `json:"editionDemoUrls"`
 	ShowCloudPromotion  bool   `json:"showCloudPromotion"`
+	Edition             string `json:"edition"`
 }
 
 func GetWebConfig() *WebConfig {
@@ -62,9 +71,18 @@ func GetWebConfig() *WebConfig {
 	config.ThemeShowcase = GetConfigBool("themeShowcase") || IsDemoMode() || IsDemoDatabase()
 	if config.ThemeShowcase {
 		config.MarketplaceUrl = GetConfigString("marketplaceUrl")
+		// where the demo site of each edition is, e.g. "Commercial=https://demo-commercial.{domain},Enterprise=..."
+		config.EditionDemoUrls = GetConfigString("editionDemoUrls")
 	}
 
-	config.ShowCloudPromotion = !hideCloudPromotion.Load()
+	config.Edition = "Community"
+	if getEdition != nil {
+		config.Edition = getEdition()
+	}
+
+	// a licensed deployment has already bought Casdoor, so it is not shown the hosted offering,
+	// while the demo sites keep it in every edition
+	config.ShowCloudPromotion = !hideCloudPromotion.Load() && (config.Edition == "Community" || config.ThemeShowcase)
 
 	return config
 }

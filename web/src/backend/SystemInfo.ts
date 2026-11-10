@@ -34,6 +34,26 @@ export function getVersionInfo() {
   }).then(res => res.json());
 }
 
+export function getLicense() {
+  return fetch(`${Setting.ServerUrl}/api/get-license`, {
+    method: "GET",
+    credentials: "include",
+    headers: {
+      "Accept-Language": Setting.getAcceptLanguage(),
+    },
+  }).then(res => res.json());
+}
+
+export function getTlsListeners() {
+  return fetch(`${Setting.ServerUrl}/api/get-tls-listeners`, {
+    method: "GET",
+    credentials: "include",
+    headers: {
+      "Accept-Language": Setting.getAcceptLanguage(),
+    },
+  }).then(res => res.json());
+}
+
 export function getUpgradeInfo() {
   return fetch(`${Setting.ServerUrl}/api/get-upgrade-info`, {
     method: "GET",

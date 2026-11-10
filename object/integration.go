@@ -21,7 +21,7 @@ import (
 	"github.com/xorm-io/core"
 )
 
-// Integration is an app integration, provider template or theme installed from the Marketplace.
+// Integration is an app integration, provider template, theme or action installed from the Marketplace.
 type Integration struct {
 	Owner       string `xorm:"varchar(100) notnull pk" json:"owner"`
 	Name        string `xorm:"varchar(100) notnull pk" json:"name"`
@@ -42,6 +42,11 @@ type Integration struct {
 	// the theme fields of the application before a theme was installed, restored on uninstall
 	Backup string `xorm:"mediumtext" json:"backup"`
 	Bundle string `xorm:"mediumtext" json:"bundle"`
+	// the WebAssembly module of an action, base64 encoded, and its kind
+	Module string `xorm:"mediumtext" json:"-"`
+	Kind   string `xorm:"varchar(50)" json:"kind"`
+	// the license the module was downloaded with, for a paid integration
+	LicenseId string `xorm:"varchar(100)" json:"licenseId"`
 }
 
 func (integration *Integration) GetId() string {
@@ -55,7 +60,7 @@ func GetIntegrationCount(owner, field, value string) (int64, error) {
 
 func GetIntegrations(owner string) ([]*Integration, error) {
 	integrations := []*Integration{}
-	err := ormer.Engine.Desc("created_time").Find(&integrations, &Integration{Owner: owner})
+	err := ormer.Engine.Desc("created_time").Omit("module").Find(&integrations, &Integration{Owner: owner})
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +70,7 @@ func GetIntegrations(owner string) ([]*Integration, error) {
 func GetPaginationIntegrations(owner string, offset, limit int, field, value, sortField, sortOrder string) ([]*Integration, error) {
 	integrations := []*Integration{}
 	session := GetSession(owner, offset, limit, field, value, sortField, sortOrder)
-	err := session.Find(&integrations, &Integration{Owner: owner})
+	err := session.Omit("module").Find(&integrations, &Integration{Owner: owner})
 	if err != nil {
 		return nil, err
 	}

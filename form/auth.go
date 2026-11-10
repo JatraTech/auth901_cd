@@ -78,6 +78,12 @@ type AuthForm struct {
 
 	// client page origin (from document.referrer) for login impersonation allowlist checks
 	ClientOrigin string `json:"clientOrigin"`
+
+	// a certificate sign-in through a UKey plug-in: the certificate in PEM or base64 DER, the challenge from
+	// /api/get-cert-challenge and the signature of the challenge in base64
+	Certificate string `json:"certificate"`
+	Nonce       string `json:"nonce"`
+	Signature   string `json:"signature"`
 }
 
 func GetAuthFormFieldValue(form *AuthForm, fieldName string) (bool, string) {

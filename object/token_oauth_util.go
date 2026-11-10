@@ -144,7 +144,7 @@ func checkResponseTypeGrant(rt ResponseType, grantTypes []string) string {
 type TokenWrapper struct {
 	AccessToken  string `json:"access_token"`
 	IdToken      string `json:"id_token,omitempty"`
-	RefreshToken string `json:"refresh_token"`
+	RefreshToken string `json:"refresh_token,omitempty"`
 	TokenType    string `json:"token_type"`
 	ExpiresIn    int    `json:"expires_in"`
 	Scope        string `json:"scope"`
@@ -696,6 +696,18 @@ func RefreshToken(application *Application, grantType string, refreshToken strin
 
 	if tokenError := getInactiveUserTokenError(user); tokenError != nil {
 		return tokenError, nil
+	}
+
+	// a user removed from the external users or groups of the application can no longer refresh
+	isUserOfApplication, err := IsUserOfApplication(user, application)
+	if err != nil {
+		return nil, err
+	}
+	if !isUserOfApplication {
+		return &TokenError{
+			Error:            InvalidGrant,
+			ErrorDescription: fmt.Sprintf("the user: %s is not allowed to sign in to the application: %s", user.GetId(), application.Name),
+		}, nil
 	}
 
 	err = ExtendUserWithRolesAndPermissions(user)

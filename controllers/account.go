@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/beego/beego/v2/core/logs"
+	"github.com/casdoor/casdoor/captcha"
 	"github.com/casdoor/casdoor/form"
 	"github.com/casdoor/casdoor/object"
 	"github.com/casdoor/casdoor/util"
@@ -63,6 +64,7 @@ type Captcha struct {
 	ClientId2     string `json:"clientId2"`
 	ClientSecret2 string `json:"clientSecret2"`
 	SubType       string `json:"subType"`
+	ChallengeUrl  string `json:"challengeUrl,omitempty"`
 }
 
 // this API is used by "Api URL" of Flarum's FoF Passport plugin
@@ -762,6 +764,8 @@ func (c *ApiController) GetAccount() {
 		return
 	}
 
+	// the browser extension reads the user's own managed accounts with their passwords here
+	var ownManagedAccounts []object.ManagedAccount
 	managedAccounts := c.Ctx.Input.Query("managedAccounts")
 	if managedAccounts == "1" {
 		user, err = object.ExtendManagedAccountsWithUser(user)
@@ -769,6 +773,7 @@ func (c *ApiController) GetAccount() {
 			c.ResponseError(err.Error())
 			return
 		}
+		ownManagedAccounts = append(ownManagedAccounts, user.ManagedAccounts...)
 	}
 
 	err = object.ExtendUserWithRolesAndPermissions(user)
@@ -796,6 +801,9 @@ func (c *ApiController) GetAccount() {
 		c.ResponseError(err.Error())
 		return
 	}
+	if ownManagedAccounts != nil && u != nil {
+		u.ManagedAccounts = ownManagedAccounts
+	}
 
 	if organization != nil && len(organization.CountryCodes) == 1 && u != nil && u.CountryCode == "" {
 		u.CountryCode = organization.CountryCodes[0]
@@ -812,12 +820,24 @@ func (c *ApiController) GetAccount() {
 	}
 	u.AccessToken = accessToken
 
+	delegatedAdmin, err := object.GetDelegatedAdminInfo(user)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	pendingAccessReviews, err := object.GetPendingReviewItemCount(user.Owner, user.Name)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+
 	resp := Response{
 		Status: "ok",
 		Sub:    user.Id,
 		Name:   user.Name,
 		Data:   u,
 		Data2:  organization,
+		Data3:  map[string]interface{}{"delegatedAdmin": delegatedAdmin, "pendingAccessReviews": pendingAccessReviews},
 	}
 	c.Data["json"] = resp
 	c.ServeJSON()
@@ -937,6 +957,19 @@ func (c *ApiController) GetCaptcha() {
 
 			c.ResponseOk(Captcha{Owner: captchaProvider.Owner, Name: captchaProvider.Name, Type: captchaProvider.Type, CaptchaId: id, CaptchaImage: img})
 			return
+		} else if captchaProvider.Type == "ALTCHA" {
+			challengeUrl := "/api/get-altcha-challenge?id=" + url.QueryEscape(captchaProvider.GetId())
+			if captchaProvider.Endpoint != "" {
+				challengeUrl = captcha.GetAltchaChallengeUrl(captchaProvider.Endpoint, captchaProvider.ClientId)
+			}
+			c.ResponseOk(Captcha{
+				Owner:        captchaProvider.Owner,
+				Name:         captchaProvider.Name,
+				Type:         captchaProvider.Type,
+				ClientSecret: "***",
+				ChallengeUrl: challengeUrl,
+			})
+			return
 		} else if captchaProvider.Type != "" {
 			c.ResponseOk(Captcha{
 				Owner:         captchaProvider.Owner,
@@ -953,6 +986,37 @@ func (c *ApiController) GetCaptcha() {
 	}
 
 	c.ResponseOk(Captcha{Type: "none"})
+}
+
+// GetAltchaChallenge
+// @Tag Login API
+// @Title GetAltchaChallenge
+// @Description Get a proof-of-work challenge of an ALTCHA captcha provider that has no external server
+// @Param   id     query string true  "The id (owner/name) of the captcha provider"
+// @router /get-altcha-challenge [get]
+// @Success 200 {object} altcha.Challenge The Response object
+func (c *ApiController) GetAltchaChallenge() {
+	id := c.Ctx.Input.Query("id")
+
+	provider, err := object.GetCaptchaProviderByOwnerName(id, c.GetAcceptLanguage())
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	if provider.Type != "ALTCHA" || provider.Endpoint != "" {
+		c.ResponseError(c.T("verification:Invalid captcha provider."))
+		return
+	}
+
+	challenge, err := captcha.CreateAltchaChallenge(provider.ClientSecret)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+
+	c.Ctx.Output.Header("Cache-Control", "no-store")
+	c.Data["json"] = challenge
+	c.ServeJSON()
 }
 
 func (c *ApiController) deleteUserSession(user string, beegoSessionId string) error {

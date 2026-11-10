@@ -107,6 +107,9 @@ type Organization struct {
 	DcrPolicy    string                 `xorm:"varchar(100)" json:"dcrPolicy"`
 	IdJagIssuers []*FederatedCredential `xorm:"mediumtext" json:"idJagIssuers"`
 
+	SecurityPolicy   *SecurityPolicy   `xorm:"json" json:"securityPolicy"`
+	EnterprisePolicy *EnterprisePolicy `xorm:"json" json:"enterprisePolicy"`
+
 	LdapAttributes     []string `xorm:"mediumtext" json:"ldapAttributes"`
 	EnableLdapPassword bool     `xorm:"bool" json:"enableLdapPassword"`
 	EnableRadius       bool     `xorm:"bool" json:"enableRadius"`
@@ -217,6 +220,11 @@ func GetMaskedOrganization(isAdmin bool, organization *Organization, errs ...err
 	}
 	if organization.KerberosKeytab != "" {
 		organization.KerberosKeytab = "***"
+	}
+	if organization.SecurityPolicy != nil && organization.SecurityPolicy.PasswordMigrationSecret != "" {
+		policy := *organization.SecurityPolicy
+		policy.PasswordMigrationSecret = "***"
+		organization.SecurityPolicy = &policy
 	}
 	if !isAdmin {
 		if organization.PasswordSalt != "" {
@@ -329,6 +337,9 @@ func UpdateOrganization(id string, organization *Organization, isGlobalAdmin boo
 	}
 	if organization.PasswordSalt == "***" {
 		session.Omit("password_salt")
+	}
+	if organization.SecurityPolicy != nil && organization.SecurityPolicy.PasswordMigrationSecret == "***" && org.SecurityPolicy != nil {
+		organization.SecurityPolicy.PasswordMigrationSecret = org.SecurityPolicy.PasswordMigrationSecret
 	}
 
 	affected, err := session.Update(organization)

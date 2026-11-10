@@ -36,6 +36,7 @@ import {MfaItemsTable} from "@/components/auth/mfa/MfaItemsTable";
 import {isAccountItemVisible} from "@/lib/account-items";
 import {PasswordModal} from "@/components/user/PasswordModal";
 import {ResetModal} from "@/components/user/ResetModal";
+import {PersonalDataActions, RevealButton} from "@/components/user/PersonalInfo";
 import {TransactionTable} from "@/components/user/TransactionTable";
 import {WebauthnCredentialTable} from "@/components/user/WebauthnCredentialTable";
 import {useAccount} from "@/hooks/use-account";
@@ -48,6 +49,7 @@ import * as MfaBackend from "@/backend/MfaBackend";
 import * as TransactionBackend from "@/backend/TransactionBackend";
 import * as UserBackend from "@/backend/UserBackend";
 import * as Setting from "@/lib/setting";
+import {canDelegated, isDelegatedAdmin, isDelegatedAdminOf} from "@/lib/delegated-admin";
 
 /** the value a Radix tab needs for the account item whose `tab` is the empty string */
 const DEFAULT_TAB = "__default__";
@@ -150,10 +152,17 @@ export default function UserEditPage({self}: {self?: boolean} = {}) {
     return <Loading />;
   }
 
-  const isAdmin = Setting.isLocalAdminUser(account);
   const isSelf = !!account && (user.id && account.id ? user.id === account.id : account.owner === user.owner && account.name === user.name);
+  const isLocalAdmin = Setting.isLocalAdminUser(account);
+  // a delegated admin edits the users of their groups like an admin, except making admins and renaming
+  const isDelegated = !isLocalAdmin && !isSelf && isDelegatedAdmin(account) && (mode === "add" || isDelegatedAdminOf(account, user));
+  const isAdmin = isLocalAdmin || isDelegated;
+  // The form layout and MFA items are a per-organization policy, and `get-user-application`
+  // is the only way a non-admin can read their own organization, so prefer it over the
+  // admin-only `get-organization` this page also fetches.
+  const userOrganization = application?.organizationObj ?? organization;
   // only offer the methods in the MFA items, an enabled one stays so it can still be edited or disabled
-  const allowedMfaTypes = Setting.getAllowedMfaTypes(user, organization);
+  const allowedMfaTypes = Setting.getAllowedMfaTypes(user, userOrganization);
   const visibleMfaItems = mfaItems.filter(
     (item: any) => item.enabled || allowedMfaTypes.length === 0 || allowedMfaTypes.includes(item.mfaType),
   );
@@ -245,10 +254,6 @@ export default function UserEditPage({self}: {self?: boolean} = {}) {
     });
   };
 
-  // The form layout is a per-organization policy, and `get-user-application` is the
-  // only way a non-admin can read their own organization, so prefer it over the
-  // admin-only `get-organization` this page also fetches.
-  const userOrganization = application?.organizationObj ?? organization;
   const isSelfOrAdmin = isSelf || isAdmin;
 
   const avatarUrl = Setting.getEffectiveAvatarUrl(user);
@@ -277,7 +282,7 @@ export default function UserEditPage({self}: {self?: boolean} = {}) {
     ),
     "Name": (
       <AccountItemRow name="Name" labelKey="general:Name">
-        <Input value={user.name ?? ""} disabled={!isAdmin} onChange={(e) => updateField("name", e.target.value)} />
+        <Input value={user.name ?? ""} disabled={!isLocalAdmin && !(isDelegated && mode === "add")} onChange={(e) => updateField("name", e.target.value)} />
       </AccountItemRow>
     ),
     "Display name": (
@@ -324,6 +329,7 @@ export default function UserEditPage({self}: {self?: boolean} = {}) {
       <AccountItemRow name="Email" labelKey="general:Email">
         <div className="flex items-center gap-2">
           <Input type="email" value={user.email ?? ""} disabled={!isAdmin} onChange={(e) => updateField("email", e.target.value)} />
+          {!isSelf ? <RevealButton userId={`${user.owner}/${user.name}`} field="email" value={user.email} onReveal={(v) => updateField("email", v)} /> : null}
           {isAdmin ? (
             <label className="flex shrink-0 items-center gap-2 text-sm">
               <Switch checked={!!user.emailVerified} onCheckedChange={(v) => updateField("emailVerified", v)} />
@@ -350,6 +356,7 @@ export default function UserEditPage({self}: {self?: boolean} = {}) {
             />
           </div>
           <Input value={user.phone ?? ""} disabled={!isAdmin} onChange={(e) => updateField("phone", e.target.value)} />
+          {!isSelf ? <RevealButton userId={`${user.owner}/${user.name}`} field="phone" value={user.phone} onReveal={(v) => updateField("phone", v)} /> : null}
           {isSelf ? (
             <ResetModal
               application={application}
@@ -589,7 +596,10 @@ export default function UserEditPage({self}: {self?: boolean} = {}) {
     ),
     "ID card": (
       <AccountItemRow name="ID card" labelKey="user:ID card">
-        <Input value={user.idCard ?? ""} onChange={(e) => updateField("idCard", e.target.value)} />
+        <div className="flex items-center gap-2">
+          <Input value={user.idCard ?? ""} onChange={(e) => updateField("idCard", e.target.value)} />
+          {!isSelf ? <RevealButton userId={`${user.owner}/${user.name}`} field="idCard" value={user.idCard} onReveal={(v) => updateField("idCard", v)} /> : null}
+        </div>
       </AccountItemRow>
     ),
     "Real name": (
@@ -770,7 +780,7 @@ export default function UserEditPage({self}: {self?: boolean} = {}) {
             userName={userName}
             organization={userOrganization}
             account={account}
-            disabled={!isAdmin && !isSelf}
+            disabled={(!isAdmin && !isSelf) || (isDelegated && !canDelegated(account, "passwords"))}
             onPasswordUpdated={() => updateField("needUpdatePassword", false)}
           />
         )}
@@ -788,7 +798,7 @@ export default function UserEditPage({self}: {self?: boolean} = {}) {
       <AccountItemRow name="Is admin" labelKey="user:Is admin">
         <Switch
           checked={!!user.isAdmin}
-          disabled={!isAdmin}
+          disabled={!isLocalAdmin}
           onCheckedChange={(v) => updateField("isAdmin", v)}
         />
       </AccountItemRow>
@@ -857,10 +867,13 @@ export default function UserEditPage({self}: {self?: boolean} = {}) {
               title: i18next.t("general:Password"),
               width: 180,
               render: (row: any, _i, patch) => (
+                // a saved password comes back as "***" and stays as it is until a new one is typed
                 <Input
                   type="password"
-                  value={row.password ?? ""}
-                  onChange={(e) => patch({password: e.target.value})}
+                  autoComplete="new-password"
+                  value={row.password === "***" ? "" : row.password ?? ""}
+                  placeholder={row.password === "***" ? i18next.t("user:Saved, type to change") : ""}
+                  onChange={(e) => patch({password: e.target.value === "" && row.password === "***" ? "***" : e.target.value})}
                 />
               ),
             },
@@ -1245,6 +1258,11 @@ export default function UserEditPage({self}: {self?: boolean} = {}) {
           </Tabs>
         )}
       </AccountItemsProvider>
+      {isSelf ? (
+        <div className={formGridClass}>
+          <PersonalDataActions user={user} organization={userOrganization} />
+        </div>
+      ) : null}
     </EditPageShell>
   );
 }
