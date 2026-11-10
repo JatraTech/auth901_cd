@@ -27,6 +27,14 @@ const GRANT_TYPES = [
 ];
 const TOKEN_FORMATS = ["JWT", "JWT-Empty", "JWT-Custom", "JWT-Standard"];
 const TOKEN_SIGNING_METHODS = ["RS256", "RS512", "ES256", "ES512", "ES384"];
+function parseNonNegativeHours(raw: string): number {
+  const hours = parseFloat(raw);
+  if (Number.isNaN(hours) || hours < 0) {
+    return 0;
+  }
+  return hours;
+}
+
 const TOKEN_GROUP_FORMATS = [
   {id: "ID", name: "ID (org/group)"},
   {id: "Path", name: "Path (org/parent/group)"},
@@ -356,15 +364,19 @@ export function ApplicationOidcOauthTab({application, updateField}: ApplicationT
       <FormRow labelKey="application:Token expire">
         <Input
           type="number"
+          min={0}
+          step="any"
           value={application.expireInHours ?? 168}
-          onChange={(e) => updateField("expireInHours", Setting.myParseInt(e.target.value))}
+          onChange={(e) => updateField("expireInHours", parseNonNegativeHours(e.target.value))}
         />
       </FormRow>
       <FormRow labelKey="application:Refresh token expire">
         <Input
           type="number"
-          value={application.refreshExpireInHours ?? 168}
-          onChange={(e) => updateField("refreshExpireInHours", Setting.myParseInt(e.target.value))}
+          min={0}
+          step="any"
+          value={application.refreshExpireInHours ?? 0}
+          onChange={(e) => updateField("refreshExpireInHours", parseNonNegativeHours(e.target.value))}
         />
       </FormRow>
       <FormRow labelKey="application:Disable refresh token rotation">
