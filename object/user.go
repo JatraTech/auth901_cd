@@ -253,6 +253,8 @@ type User struct {
 	NeedUpdatePassword  bool             `json:"needUpdatePassword"`
 	IpWhitelist         string           `xorm:"varchar(200)" json:"ipWhitelist"`
 	ApplicationScopes   []ConsentRecord  `xorm:"mediumtext" json:"applicationScopes"`
+
+	Applications []string `xorm:"-" json:"applications,omitempty"`
 }
 
 type Userinfo struct {
@@ -475,6 +477,27 @@ func GetPaginationUsersWithFilter(owner string, offset, limit int, cond builder.
 	users := []*User{}
 	session := GetSession(owner, offset, limit, "", "", "", "")
 	err := session.And(cond).Find(&users)
+	if err != nil {
+		return nil, err
+	}
+	return users, nil
+}
+
+// GetLoginImpersonationUserCount counts users in owner whose home app matches
+// or who hold explicit membership, applying the same field/value search
+// allowlist as GetSession so counts stay consistent with the paginated list.
+// (Predicate core lives in user_application.go: BuildLoginImpersonationCond.)
+func GetLoginImpersonationUserCount(owner, applicationName, field, value string) (int64, error) {
+	session := GetSession(owner, -1, -1, field, value, "", "")
+	return session.And(BuildLoginImpersonationCond(applicationName)).Count(&User{})
+}
+
+// GetLoginImpersonationPaginationUsers lists users in owner with home or
+// membership access to applicationName, preserving field/value search and sort.
+func GetLoginImpersonationPaginationUsers(owner, applicationName string, offset, limit int, field, value, sortField, sortOrder string) ([]*User, error) {
+	users := []*User{}
+	session := GetSession(owner, offset, limit, field, value, sortField, sortOrder)
+	err := session.And(BuildLoginImpersonationCond(applicationName)).Find(&users)
 	if err != nil {
 		return nil, err
 	}
@@ -1165,6 +1188,10 @@ func AddUser(user *User, lang string) (bool, error) {
 		return false, errors.New(i18n.Translate(lang, "organization:adding a new user to the 'built-in' organization is currently disabled. Please note: all users in the 'built-in' organization are global administrators in Casdoor. Refer to the docs: https://casdoor.org/docs/basic/core-concepts#how-does-casdoor-manage-itself. If you still wish to create a user for the 'built-in' organization, go to the organization's settings page and enable the 'Has privilege consent' option."))
 	}
 
+	if user.SignupApplication == "" {
+		user.SignupApplication = organization.DefaultApplication
+	}
+
 	if user.BalanceCurrency == "" {
 		if organization.BalanceCurrency != "" {
 			user.BalanceCurrency = organization.BalanceCurrency
@@ -1238,6 +1265,20 @@ func AddUser(user *User, lang string) (bool, error) {
 		return false, err
 	}
 
+	if affected != 0 && user.SignupApplication != "" {
+		// Home app is always the first membership; extra apps are granted manually.
+		// Best-effort: the user row already exists, a membership failure must not
+		// orphan the explanation, so surface it instead of silently succeeding.
+		if _, err := AddUserApplication(user.Owner, user.Name, user.SignupApplication); err != nil {
+			return true, err
+		}
+		if len(user.Applications) > 0 {
+			if err := SetUserApplications(user.Owner, user.Name, append([]string{user.SignupApplication}, user.Applications...)); err != nil {
+				return true, err
+			}
+		}
+	}
+
 	return affected != 0, nil
 }
 
@@ -1249,9 +1290,25 @@ func AddUsers(users []*User) (bool, error) {
 	isUsernameLowered := conf.GetConfigBool("isUsernameLowered")
 
 	// organization := GetOrganizationByUser(users[0])
+	orgCache := map[string]*Organization{}
 	for _, user := range users {
 		// this function is only used for syncer or batch upload, so no need to encrypt the password
 		// user.UpdateUserPassword(organization)
+
+		if user.SignupApplication == "" {
+			org, ok := orgCache[user.Owner]
+			if !ok {
+				var err error
+				org, err = GetOrganization(util.GetId("admin", user.Owner))
+				if err != nil {
+					return false, err
+				}
+				orgCache[user.Owner] = org
+			}
+			if org != nil && org.DefaultApplication != "" {
+				user.SignupApplication = org.DefaultApplication
+			}
+		}
 
 		if user.CreatedTime == "" {
 			user.CreatedTime = util.GetCurrentTime()
@@ -1293,6 +1350,23 @@ func AddUsers(users []*User) (bool, error) {
 		}
 	}
 
+	if affected != 0 {
+		for _, user := range users {
+			if user.SignupApplication == "" {
+				continue
+			}
+			if _, err := AddUserApplication(user.Owner, user.Name, user.SignupApplication); err != nil {
+				return true, err
+			}
+			if len(user.Applications) > 0 {
+				desired := append([]string{user.SignupApplication}, user.Applications...)
+				if err := SetUserApplications(user.Owner, user.Name, desired); err != nil {
+					return true, err
+				}
+			}
+		}
+	}
+
 	return affected != 0, nil
 }
 
@@ -1328,6 +1402,8 @@ func deleteUser(user *User) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
+	_, _ = ormer.Engine.Where("owner=? AND name=?", user.Owner, user.Name).Delete(&UserApplication{})
 
 	return affected != 0, nil
 }
@@ -1746,6 +1822,11 @@ func userChangeTrigger(owner string, oldName string, newName string) error {
 	}
 
 	_, err = session.Where("owner = ? AND name = ?", owner, oldName).Cols("name").Update(&PasswordHistory{Name: newName})
+	if err != nil {
+		return err
+	}
+
+	_, err = session.Where("owner = ? AND name = ?", owner, oldName).Cols("name").Update(&UserApplication{Name: newName})
 	if err != nil {
 		return err
 	}

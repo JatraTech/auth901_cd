@@ -98,64 +98,65 @@ type Application struct {
 	Name        string `xorm:"varchar(100) notnull pk" json:"name"`
 	CreatedTime string `xorm:"varchar(100)" json:"createdTime"`
 
-	DisplayName                  string          `xorm:"varchar(100)" json:"displayName"`
-	Category                     string          `xorm:"varchar(20)" json:"category"`
-	Type                         string          `xorm:"varchar(20)" json:"type"`
-	Scopes                       []*ScopeItem    `xorm:"mediumtext" json:"scopes"`
-	Logo                         string          `xorm:"varchar(200)" json:"logo"`
-	LogoDark                     string          `xorm:"varchar(200)" json:"logoDark"`
-	Title                        string          `xorm:"varchar(100)" json:"title"`
-	Favicon                      string          `xorm:"varchar(200)" json:"favicon"`
-	Order                        int             `json:"order"`
-	HomepageUrl                  string          `xorm:"varchar(100)" json:"homepageUrl"`
-	Description                  string          `xorm:"mediumtext" json:"description"`
-	Organization                 string          `xorm:"varchar(100)" json:"organization"`
-	Cert                         string          `xorm:"varchar(100)" json:"cert"`
-	DefaultGroup                 string          `xorm:"varchar(100)" json:"defaultGroup"`
-	DefaultTag                   string          `xorm:"varchar(100)" json:"defaultTag"`
-	HeaderHtml                   string          `xorm:"mediumtext" json:"headerHtml"`
-	PageHtml                     string          `xorm:"mediumtext" json:"pageHtml"`
-	EnableCustomScript           bool            `json:"enableCustomScript"`
-	EnableLoginImpersonation     bool            `json:"enableLoginImpersonation"`
-	LoginImpersonationOrigins    []string        `xorm:"text" json:"loginImpersonationOrigins"`
-	EnablePassword               bool            `json:"enablePassword"`
-	EnableSignUp                 bool            `json:"enableSignUp"`
-	DisableSelfSignup            bool            `json:"disableSelfSignup"`
-	EnableGuestSignin            bool            `json:"enableGuestSignin"`
-	DisableSignin                bool            `json:"disableSignin"`
-	EnableSigninSession          bool            `json:"enableSigninSession"`
-	EnableAutoSignin             bool            `json:"enableAutoSignin"`
-	EnableCodeSignin             bool            `json:"enableCodeSignin"`
-	EnableExclusiveSignin        bool            `json:"enableExclusiveSignin"`
-	MaxSessions                  int             `json:"maxSessions"`
-	InactiveTimeoutMinutes       int             `json:"inactiveTimeoutMinutes"`
-	EnableSamlCompress           bool            `json:"enableSamlCompress"`
-	EnableSamlC14n10             bool            `json:"enableSamlC14n10"`
-	EnableSamlPostBinding        bool            `json:"enableSamlPostBinding"`
-	DisableSamlAttributes        bool            `json:"disableSamlAttributes"`
-	EnableSamlAssertionSignature bool            `json:"enableSamlAssertionSignature"`
-	UseEmailAsSamlNameId         bool            `json:"useEmailAsSamlNameId"`
-	SamlNameIdTemplate           string          `xorm:"mediumtext" json:"samlNameIdTemplate"`
-	EnableWebAuthn               bool            `json:"enableWebAuthn"`
-	EnableLinkWithEmail          bool            `json:"enableLinkWithEmail"`
-	OrgChoiceMode                string          `json:"orgChoiceMode"`
-	SamlReplyUrl                 string          `xorm:"varchar(500)" json:"samlReplyUrl"`
-	SamlSingleLogoutUrl          string          `xorm:"mediumtext" json:"samlSingleLogoutUrl"`
-	Providers                    []*ProviderItem `xorm:"mediumtext" json:"providers"`
-	SigninMethods                []*SigninMethod `xorm:"varchar(2000)" json:"signinMethods"`
-	SignupItems                  []*SignupItem   `xorm:"varchar(3000)" json:"signupItems"`
-	SigninItems                  []*SigninItem   `xorm:"mediumtext" json:"signinItems"`
-	GrantTypes                   []string        `xorm:"varchar(1000)" json:"grantTypes"`
-	OrganizationObj              *Organization   `xorm:"-" json:"organizationObj"`
-	CertPublicKey                string          `xorm:"-" json:"certPublicKey"`
-	Tags                         []string        `xorm:"mediumtext" json:"tags"`
-	SamlAttributes               []*SamlItem     `xorm:"varchar(1000)" json:"samlAttributes"`
-	SamlHashAlgorithm            string          `xorm:"varchar(20)" json:"samlHashAlgorithm"`
-	SamlC14nPrefix               string          `xorm:"varchar(100)" json:"samlC14nPrefix"`
-	IsShared                     bool            `json:"isShared"`
-	ExternalUsers                []string        `xorm:"mediumtext" json:"externalUsers"`
-	ExternalGroups               []string        `xorm:"mediumtext" json:"externalGroups"`
-	IpRestriction                string          `json:"ipRestriction"`
+	DisplayName                    string          `xorm:"varchar(100)" json:"displayName"`
+	Category                       string          `xorm:"varchar(20)" json:"category"`
+	Type                           string          `xorm:"varchar(20)" json:"type"`
+	Scopes                         []*ScopeItem    `xorm:"mediumtext" json:"scopes"`
+	Logo                           string          `xorm:"varchar(200)" json:"logo"`
+	LogoDark                       string          `xorm:"varchar(200)" json:"logoDark"`
+	Title                          string          `xorm:"varchar(100)" json:"title"`
+	Favicon                        string          `xorm:"varchar(200)" json:"favicon"`
+	Order                          int             `json:"order"`
+	HomepageUrl                    string          `xorm:"varchar(100)" json:"homepageUrl"`
+	Description                    string          `xorm:"mediumtext" json:"description"`
+	Organization                   string          `xorm:"varchar(100)" json:"organization"`
+	Cert                           string          `xorm:"varchar(100)" json:"cert"`
+	DefaultGroup                   string          `xorm:"varchar(100)" json:"defaultGroup"`
+	DefaultTag                     string          `xorm:"varchar(100)" json:"defaultTag"`
+	HeaderHtml                     string          `xorm:"mediumtext" json:"headerHtml"`
+	PageHtml                       string          `xorm:"mediumtext" json:"pageHtml"`
+	EnableCustomScript             bool            `json:"enableCustomScript"`
+	EnableLoginImpersonation       bool            `json:"enableLoginImpersonation"`
+	LoginImpersonationOrigins      []string        `xorm:"text" json:"loginImpersonationOrigins"`
+	LoginImpersonationAppUsersOnly bool            `json:"loginImpersonationAppUsersOnly"`
+	EnablePassword                 bool            `json:"enablePassword"`
+	EnableSignUp                   bool            `json:"enableSignUp"`
+	DisableSelfSignup              bool            `json:"disableSelfSignup"`
+	EnableGuestSignin              bool            `json:"enableGuestSignin"`
+	DisableSignin                  bool            `json:"disableSignin"`
+	EnableSigninSession            bool            `json:"enableSigninSession"`
+	EnableAutoSignin               bool            `json:"enableAutoSignin"`
+	EnableCodeSignin               bool            `json:"enableCodeSignin"`
+	EnableExclusiveSignin          bool            `json:"enableExclusiveSignin"`
+	MaxSessions                    int             `json:"maxSessions"`
+	InactiveTimeoutMinutes         int             `json:"inactiveTimeoutMinutes"`
+	EnableSamlCompress             bool            `json:"enableSamlCompress"`
+	EnableSamlC14n10               bool            `json:"enableSamlC14n10"`
+	EnableSamlPostBinding          bool            `json:"enableSamlPostBinding"`
+	DisableSamlAttributes          bool            `json:"disableSamlAttributes"`
+	EnableSamlAssertionSignature   bool            `json:"enableSamlAssertionSignature"`
+	UseEmailAsSamlNameId           bool            `json:"useEmailAsSamlNameId"`
+	SamlNameIdTemplate             string          `xorm:"mediumtext" json:"samlNameIdTemplate"`
+	EnableWebAuthn                 bool            `json:"enableWebAuthn"`
+	EnableLinkWithEmail            bool            `json:"enableLinkWithEmail"`
+	OrgChoiceMode                  string          `json:"orgChoiceMode"`
+	SamlReplyUrl                   string          `xorm:"varchar(500)" json:"samlReplyUrl"`
+	SamlSingleLogoutUrl            string          `xorm:"mediumtext" json:"samlSingleLogoutUrl"`
+	Providers                      []*ProviderItem `xorm:"mediumtext" json:"providers"`
+	SigninMethods                  []*SigninMethod `xorm:"varchar(2000)" json:"signinMethods"`
+	SignupItems                    []*SignupItem   `xorm:"varchar(3000)" json:"signupItems"`
+	SigninItems                    []*SigninItem   `xorm:"mediumtext" json:"signinItems"`
+	GrantTypes                     []string        `xorm:"varchar(1000)" json:"grantTypes"`
+	OrganizationObj                *Organization   `xorm:"-" json:"organizationObj"`
+	CertPublicKey                  string          `xorm:"-" json:"certPublicKey"`
+	Tags                           []string        `xorm:"mediumtext" json:"tags"`
+	SamlAttributes                 []*SamlItem     `xorm:"varchar(1000)" json:"samlAttributes"`
+	SamlHashAlgorithm              string          `xorm:"varchar(20)" json:"samlHashAlgorithm"`
+	SamlC14nPrefix                 string          `xorm:"varchar(100)" json:"samlC14nPrefix"`
+	IsShared                       bool            `json:"isShared"`
+	ExternalUsers                  []string        `xorm:"mediumtext" json:"externalUsers"`
+	ExternalGroups                 []string        `xorm:"mediumtext" json:"externalGroups"`
+	IpRestriction                  string          `json:"ipRestriction"`
 
 	ClientId                string                 `xorm:"varchar(100)" json:"clientId"`
 	ClientSecret            string                 `xorm:"varchar(100)" json:"clientSecret"`

@@ -847,6 +847,10 @@ func (c *ApiController) Login() {
 			c.ResponseError(c.T("check:Guest users must upgrade their account by setting a username and password before they can sign in directly"))
 			return
 		}
+		if application.LoginImpersonationAppUsersOnly && !object.IsUserInApplication(user, application.Name) {
+			c.ResponseError(c.T("auth:Unauthorized operation"))
+			return
+		}
 
 		resp = c.HandleLoggedIn(application, user, &authForm)
 		c.Ctx.Input.SetParam("recordUserId", user.GetId())
