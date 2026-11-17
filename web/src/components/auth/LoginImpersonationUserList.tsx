@@ -2,6 +2,7 @@ import * as React from "react";
 import i18next from "i18next";
 import {Loader2} from "lucide-react";
 import {Input} from "@/components/ui/input";
+import {Avatar, AvatarFallback, AvatarImage} from "@/components/ui/avatar";
 import {cn} from "@/lib/utils";
 import * as UserBackend from "@/backend/UserBackend";
 import * as Setting from "@/lib/setting";
@@ -86,7 +87,15 @@ export function LoginImpersonationUserList({
         }
         if (res.status === "ok") {
           const next = (res.data ?? []) as LoginImpersonationUser[];
-          setUsers((prev) => (page === 1 ? next : [...prev, ...next]));
+          // Dedupe by owner/name: the paginator clamps out-of-range pages to the
+          // last page, so blind appends would repeat the final rows as duplicates.
+          setUsers((prev) => {
+            if (page === 1) {
+              return next;
+            }
+            const seen = new Set(prev.map((u) => `${u.owner}/${u.name}`));
+            return [...prev, ...next.filter((u) => !seen.has(`${u.owner}/${u.name}`))];
+          });
           setPageCount(Math.max(1, Number(res.data2) || 1));
         } else {
           if (page === 1) {
@@ -144,6 +153,9 @@ export function LoginImpersonationUserList({
 
   return (
     <div className={cn("space-y-3", className)}>
+      <p className="text-xs text-muted-foreground">
+        {i18next.t("login:Showing users for")} <span className="font-medium text-foreground">{applicationName}</span>
+      </p>
       <Input
         value={search}
         onChange={(e) => setSearch(e.target.value)}
@@ -169,16 +181,26 @@ export function LoginImpersonationUserList({
                   className="w-full rounded-lg border bg-muted/40 px-3 py-2.5 text-left transition-colors hover:bg-muted/70 disabled:pointer-events-none disabled:opacity-50"
                   onClick={() => onSelect(user)}
                 >
-                  <div className="truncate text-sm font-medium text-foreground">
-                    {titleFor(user)}
-                    {user.displayName && user.displayName !== user.name ? (
-                      <span className="font-normal text-muted-foreground"> ({user.name})</span>
-                    ) : null}
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-9 w-9 shrink-0">
+                      {user.avatar ? <AvatarImage src={user.avatar} alt={titleFor(user)} /> : null}
+                      <AvatarFallback>{(titleFor(user) || "?").charAt(0).toUpperCase()}</AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium text-foreground">
+                        {titleFor(user)}
+                        {user.displayName && user.displayName !== user.name ? (
+                          <span className="font-normal text-muted-foreground"> ({user.name})</span>
+                        ) : null}
+                      </div>
+                      <div className="truncate text-xs text-muted-foreground">
+                        {applicationName} · {user.owner}
+                      </div>
+                      {user.email ? (
+                        <div className="truncate text-xs text-muted-foreground">{user.email}</div>
+                      ) : null}
+                    </div>
                   </div>
-                  <div className="truncate text-xs text-muted-foreground">{user.owner}</div>
-                  {user.email ? (
-                    <div className="truncate text-xs text-muted-foreground">{user.email}</div>
-                  ) : null}
                 </button>
               </li>
             ))}

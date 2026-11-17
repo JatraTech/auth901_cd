@@ -1061,6 +1061,13 @@ func applicationChangeTrigger(oldName string, newName string) error {
 		return err
 	}
 
+	membership := new(UserApplication)
+	membership.Application = newName
+	_, err = session.Where("application=?", oldName).Update(membership)
+	if err != nil {
+		return err
+	}
+
 	resource := new(Resource)
 	resource.Application = newName
 	_, err = session.Where("application=?", oldName).Update(resource)

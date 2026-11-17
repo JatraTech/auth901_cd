@@ -1,7 +1,7 @@
 import * as React from "react";
 import i18next from "i18next";
 import {Link, useLocation, useNavigate, useParams} from "react-router-dom";
-import {ShieldCheck, Users} from "lucide-react";
+import {HelpCircle, ShieldCheck, Users} from "lucide-react";
 import {UnauthorizedPage} from "@/components/common/UnauthorizedPage";
 import {Alert, AlertDescription, AlertTitle} from "@/components/ui/alert";
 import {Avatar, AvatarFallback, AvatarImage} from "@/components/ui/avatar";
@@ -101,6 +101,9 @@ export default function UserEditPage({self}: {self?: boolean} = {}) {
     deps: [organizationName, userName],
   });
   const affiliation = useAffiliation(application, user);
+  // Extra-membership dropdown: home app access is automatic, so hide it here.
+  // Signup select (line ~407) and managed-accounts table keep the full list.
+  const extraApplicationOptions = React.useMemo(() => (!user?.signupApplication ? applications : applications.filter((o) => o.value !== user.signupApplication)), [applications, user?.signupApplication]);
 
   React.useEffect(() => {
     setMfaItems(user?.multiFactorAuths ?? []);
@@ -400,11 +403,30 @@ export default function UserEditPage({self}: {self?: boolean} = {}) {
     ),
     "Signup application": (
       <AccountItemRow name="Signup application" labelKey="general:Signup application">
-        <SearchableSelect
-          value={user.signupApplication ?? ""}
-          onChange={(v) => updateField("signupApplication", v)}
-          options={applications}
-        />
+        <div className="space-y-2">
+          <SearchableSelect
+            value={user.signupApplication ?? ""}
+            onChange={(v) => updateField("signupApplication", v)}
+            options={applications}
+          />
+          {/* extra app memberships for the login-impersonation picker: home app always applies, these grant more */}
+          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <span>{i18next.t("user:Additional applications")}</span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button type="button" tabIndex={-1} className="text-muted-foreground/60 hover:text-foreground">
+                  <HelpCircle className="h-3.5 w-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-sm">{i18next.t("user:Additional applications - Tooltip")}</TooltipContent>
+            </Tooltip>
+          </div>
+          <MultiSelect
+            value={user.applications ?? (user.signupApplication ? [user.signupApplication] : [])}
+            onChange={(v) => updateField("applications", v)}
+            options={extraApplicationOptions}
+          />
+        </div>
       </AccountItemRow>
     ),
     "Groups": (
