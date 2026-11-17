@@ -298,6 +298,10 @@ var userObjectApis = []string{
 	"/api/delete-session",
 	"/api/get-permissions-by-submitter",
 	"/api/delete-resource",
+	// Grants act on the (owner, name) carried by the body, so a client can
+	// only ever self-authorize its own grant; revocation is deliberately
+	// excluded, self-removal stays denied at the filter.
+	"/api/add-user-application",
 }
 
 func dropNonUserSelfObject(subOwner string, subName string, urlPath string, objOwner string, objName string) string {

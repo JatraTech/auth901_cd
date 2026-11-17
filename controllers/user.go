@@ -120,6 +120,7 @@ func (c *ApiController) GetUsers() {
 			return
 		}
 
+		_ = object.ExtendUsersWithApplications(users)
 		c.maskPersonalInfo(users...)
 		c.ResponseOk(users)
 	} else {
@@ -143,6 +144,7 @@ func (c *ApiController) GetUsers() {
 			return
 		}
 
+		_ = object.ExtendUsersWithApplications(users)
 		c.maskPersonalInfo(users...)
 		c.ResponseOk(users, paginator.Nums())
 	}
@@ -205,14 +207,48 @@ func (c *ApiController) GetLoginImpersonationUsers() {
 		limit = 100
 	}
 
-	count, err := object.GetUserCount(owner, field, value, "")
+	var count int64
+	var users []*object.User
+	if application.LoginImpersonationAppUsersOnly {
+		count, err = object.GetLoginImpersonationUserCount(owner, application.Name, field, value)
+		if err != nil {
+			c.ResponseError(err.Error())
+			return
+		}
+
+		paginator := pagination.NewPaginator(c.Ctx.Request, limit, count)
+		users, err = object.GetLoginImpersonationPaginationUsers(owner, application.Name, paginator.Offset(), limit, field, value, "name", "asc")
+		if err != nil {
+			c.ResponseError(err.Error())
+			return
+		}
+
+		masked := make([]*object.User, 0, len(users))
+		for _, user := range users {
+			if user == nil || user.IsDeleted || user.IsForbidden || user.Tag == "guest-user" {
+				continue
+			}
+			masked = append(masked, &object.User{
+				Owner:       user.Owner,
+				Name:        user.Name,
+				DisplayName: user.DisplayName,
+				Avatar:      user.Avatar,
+				Email:       user.Email,
+			})
+		}
+
+		c.ResponseOk(masked, paginator.PageNums())
+		return
+	}
+
+	count, err = object.GetUserCount(owner, field, value, "")
 	if err != nil {
 		c.ResponseError(err.Error())
 		return
 	}
 
 	paginator := pagination.NewPaginator(c.Ctx.Request, limit, count)
-	users, err := object.GetPaginationUsers(owner, paginator.Offset(), limit, field, value, "name", "asc", "")
+	users, err = object.GetPaginationUsers(owner, paginator.Offset(), limit, field, value, "name", "asc", "")
 	if err != nil {
 		c.ResponseError(err.Error())
 		return
@@ -232,7 +268,7 @@ func (c *ApiController) GetLoginImpersonationUsers() {
 		})
 	}
 
-	c.ResponseOk(masked, paginator.Nums())
+	c.ResponseOk(masked, paginator.PageNums())
 }
 
 // GetUser
@@ -345,6 +381,13 @@ func (c *ApiController) GetUser() {
 	if organization != nil && user != nil {
 		user, err = object.GetFilteredUser(user, isAdmin, isAdminOrSelf, organization.AccountItems)
 		if err != nil {
+			c.ResponseError(err.Error())
+			return
+		}
+	}
+
+	if user != nil && (isAdmin || isAdminOrSelf) {
+		if err := object.ExtendUserWithApplications(user); err != nil {
 			c.ResponseError(err.Error())
 			return
 		}
@@ -589,6 +632,73 @@ func (c *ApiController) UpdateUser() {
 		if err != nil {
 			c.ResponseError(err.Error())
 			return
+		}
+
+		// Membership sync mirrors the Signup-application visibility rule.
+		// The payload may carry "applications"; when present it is reconciled to
+		// exactly that set plus the home app (home access never depends on the row).
+		// A home-app change always ensures the new home row exists.
+		// Full reconcile is for admins, service app-tokens and delegated admins
+		// (isAdmin already covers delegation). Anyone else may only repair their
+		// own home-app row, never reconcile an arbitrary set.
+		if isAdmin || c.isServiceAppToken() {
+			owner, name := user.Owner, user.Name
+			if owner == "" {
+				owner = oldUser.Owner
+			}
+			if name == "" {
+				name = oldUser.Name
+			}
+			// Owner rename (global admin moving orgs): carry rows to the new owner.
+			if (oldUser.Owner != owner || oldUser.Name != name) && (oldUser.Owner != "" && oldUser.Name != "") {
+				if apps, err := object.GetUserApplications(oldUser.Owner, oldUser.Name); err == nil {
+					for _, a := range apps {
+						_, _ = object.AddUserApplication(owner, name, a)
+						_, _ = object.RemoveUserApplication(oldUser.Owner, oldUser.Name, a)
+					}
+				}
+			}
+			if user.SignupApplication != "" {
+				_, _ = object.AddUserApplication(owner, name, user.SignupApplication)
+			}
+			if strings.Contains(string(c.Ctx.Input.RequestBody), `"applications"`) && user.Applications != nil {
+				desired := append([]string{}, user.Applications...)
+				if user.SignupApplication != "" {
+					found := false
+					for _, a := range desired {
+						if a == user.SignupApplication {
+							found = true
+							break
+						}
+					}
+					if !found {
+						desired = append(desired, user.SignupApplication)
+					}
+				} else if oldUser.SignupApplication != "" {
+					desired = append(desired, oldUser.SignupApplication)
+				}
+				if err := object.SetUserApplications(owner, name, desired); err != nil {
+					c.ResponseError(err.Error())
+					return
+				}
+			}
+		} else if c.isSessionUser(oldUser) {
+			// Self-service is add-only: repairing your own home-app row is
+			// harmless, reconciling an arbitrary set is not.
+			owner, name := user.Owner, user.Name
+			if owner == "" {
+				owner = oldUser.Owner
+			}
+			if name == "" {
+				name = oldUser.Name
+			}
+			signupApp := user.SignupApplication
+			if signupApp == "" {
+				signupApp = oldUser.SignupApplication
+			}
+			if signupApp != "" {
+				_, _ = object.AddUserApplication(owner, name, signupApp)
+			}
 		}
 	}
 
@@ -1378,4 +1488,147 @@ func (c *ApiController) VerifyIdentification() {
 	}
 
 	c.ResponseOk(user.RealName)
+}
+
+// isServiceAppToken tells whether the request runs as a non-DCR application
+// credential ("app/<name>"): such tokens act as an admin of the application's
+// organization. A dynamically registered client ("app-dcr/<name>") is created
+// by anyone, so it is never privileged.
+func (c *ApiController) isServiceAppToken() bool {
+	currentUserId := c.GetSessionUsername()
+	if !object.IsAppUser(currentUserId) {
+		return false
+	}
+	appUser, err := object.GetAppUser(currentUserId)
+	return err == nil && appUser != nil
+}
+
+// canGrantMembership is the scoped allowlist for granting or revoking an
+// explicit application membership row: a global or org admin, a service
+// application credential, or a delegated admin for a user they administer.
+// With allowSelf, the signed-in user may also grant to themselves (add-only);
+// revocation never allows self, so a member cannot launder their own removal.
+func (c *ApiController) canGrantMembership(target *object.User, allowSelf bool) bool {
+	if c.IsAdmin() {
+		return true
+	}
+	if c.isServiceAppToken() {
+		return true
+	}
+	if scope := c.getDelegatedScope(); scope != nil && scope.CanManageUser(target) {
+		return true
+	}
+	return allowSelf && target != nil && c.isSessionUser(target)
+}
+
+// GetUserApplications lists explicit app memberships for a user (home app excluded unless granted).
+// @Title GetUserApplications
+// @Tag User API
+// @Description get user application memberships
+// @Param   owner  query    string  true   "The owner of the user"
+// @Param   name   query    string  true   "The name of the user"
+// @Success 200 {array} string The Response object
+// @router /get-user-applications [get]
+func (c *ApiController) GetUserApplications() {
+	owner := c.Ctx.Input.Query("owner")
+	name := c.Ctx.Input.Query("name")
+	if owner == "" || name == "" {
+		c.ResponseError(c.T("general:Missing parameter"))
+		return
+	}
+	apps, err := object.GetUserApplications(owner, name)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	c.ResponseOk(apps)
+}
+
+// AddUserApplication grants a user membership in an application.
+// @Title AddUserApplication
+// @Tag User API
+// @Description grant user application membership
+// @Param   body    body   object.UserApplication  true  "owner, name, application"
+// @Success 200 {object} controllers.Response The Response object
+// @router /add-user-application [post]
+func (c *ApiController) AddUserApplication() {
+	var req object.UserApplication
+	if err := json.Unmarshal(c.Ctx.Input.RequestBody, &req); err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	if req.Owner == "" || req.Name == "" || req.Application == "" {
+		c.ResponseError(c.T("general:Missing parameter"))
+		return
+	}
+	user, err := object.GetUser(util.GetId(req.Owner, req.Name))
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	// The gate runs before the existence errors: anyone who may not grant
+	// must not learn whether an arbitrary user id exists, so a missing user
+	// reads as denied to them. canGrantMembership is nil-safe (false for
+	// delegated and self when the target is missing).
+	if !c.canGrantMembership(user, true) {
+		c.ResponseError(c.T("auth:Unauthorized operation"))
+		return
+	}
+	if user == nil {
+		c.ResponseError(fmt.Sprintf(c.T("general:The user: %s doesn't exist"), util.GetId(req.Owner, req.Name)))
+		return
+	}
+	application, err := object.GetApplication(util.GetId("admin", req.Application))
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	if application == nil {
+		// Some deployments own applications by their organization, not "admin".
+		application, err = object.GetApplicationByOrganizationAndName(user.Owner, req.Application)
+		if err != nil {
+			c.ResponseError(err.Error())
+			return
+		}
+	}
+	if application == nil {
+		c.ResponseError(fmt.Sprintf(c.T("auth:The application: %s does not exist"), req.Application))
+		return
+	}
+	c.Data["json"] = wrapActionResponse(object.AddUserApplication(req.Owner, req.Name, req.Application))
+	c.ServeJSON()
+}
+
+// RemoveUserApplication revokes a user membership in an application (never touches home app).
+// @Title RemoveUserApplication
+// @Tag User API
+// @Description revoke user application membership
+// @Param   body    body   object.UserApplication  true  "owner, name, application"
+// @Success 200 {object} controllers.Response The Response object
+// @router /remove-user-application [post]
+func (c *ApiController) RemoveUserApplication() {
+	var req object.UserApplication
+	if err := json.Unmarshal(c.Ctx.Input.RequestBody, &req); err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	if req.Owner == "" || req.Name == "" || req.Application == "" {
+		c.ResponseError(c.T("general:Missing parameter"))
+		return
+	}
+	// Revocation stays strict: admins, service app-tokens and delegated
+	// admins only, never self. canGrantMembership is nil-safe, so a missing
+	// target reads as denied to the unprivileged and as a no-op delete to
+	// the privileged (idempotent, as before).
+	user, err := object.GetUser(util.GetId(req.Owner, req.Name))
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	if !c.canGrantMembership(user, false) {
+		c.ResponseError(c.T("auth:Unauthorized operation"))
+		return
+	}
+	c.Data["json"] = wrapActionResponse(object.RemoveUserApplication(req.Owner, req.Name, req.Application))
+	c.ServeJSON()
 }

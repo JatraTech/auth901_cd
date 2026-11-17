@@ -342,6 +342,22 @@ func getObjectFromBody(ctx *context.Context, path string) (string, string) {
 		return ctx.Request.Form.Get("owner"), ctx.Request.Form.Get("name")
 	}
 
+	// Membership rows are keyed by the target user carried in the body, so the
+	// request is authorized against that user, not an empty owner. The
+	// controller then enforces the scoped allowlist (admin, service app-token,
+	// delegated admin, self for grants only). Remove stays out of the
+	// self-match list in authz, so self-removal is denied here already.
+	if path == "/api/add-user-application" || path == "/api/remove-user-application" {
+		var req struct {
+			Owner string `json:"owner"`
+			Name  string `json:"name"`
+		}
+		if err := json.Unmarshal(body, &req); err != nil {
+			return ownerNameFromForm(ctx)
+		}
+		return req.Owner, req.Name
+	}
+
 	if checkIsOrgOwnerObject(path) && !strings.HasSuffix(path, "-organization") {
 		var objWithOrg ObjectWithOrg
 		err := json.Unmarshal(body, &objWithOrg)

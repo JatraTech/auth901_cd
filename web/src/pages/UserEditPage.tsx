@@ -400,11 +400,20 @@ export default function UserEditPage({self}: {self?: boolean} = {}) {
     ),
     "Signup application": (
       <AccountItemRow name="Signup application" labelKey="general:Signup application">
-        <SearchableSelect
-          value={user.signupApplication ?? ""}
-          onChange={(v) => updateField("signupApplication", v)}
-          options={applications}
-        />
+        <div className="space-y-2">
+          <SearchableSelect
+            value={user.signupApplication ?? ""}
+            onChange={(v) => updateField("signupApplication", v)}
+            options={applications}
+          />
+          {/* extra app memberships for the login-impersonation picker: home app always applies, these grant more */}
+          <div className="text-sm text-muted-foreground">{i18next.t("user:Applications")}</div>
+          <MultiSelect
+            value={user.applications ?? (user.signupApplication ? [user.signupApplication] : [])}
+            onChange={(v) => updateField("applications", v)}
+            options={applications}
+          />
+        </div>
       </AccountItemRow>
     ),
     "Groups": (

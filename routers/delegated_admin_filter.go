@@ -52,6 +52,12 @@ var delegatedApis = map[string]delegatedApi{
 	"/api/get-application":        {method: "GET", application: true},
 	"/api/update-application":     {method: "POST", action: object.DelegatedActionApplications, application: true},
 	"/api/get-organization":       {method: "GET"},
+	// Membership rows: delegated admins read the rows of their users and
+	// grant or revoke them, the controllers check the target against the
+	// administered groups.
+	"/api/get-user-applications":   {method: "GET"},
+	"/api/add-user-application":    {method: "POST", action: object.DelegatedActionUsers},
+	"/api/remove-user-application": {method: "POST", action: object.DelegatedActionUsers},
 }
 
 // checkDelegatedAdmin returns the scope of a delegated admin's request to one of the delegated APIs, nil when the

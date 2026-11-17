@@ -353,6 +353,11 @@ func (a *Ormer) createTable() {
 		panic(err)
 	}
 
+	err = a.Engine.Sync2(new(UserApplication))
+	if err != nil {
+		panic(err)
+	}
+
 	err = a.Engine.Sync2(new(Invitation))
 	if err != nil {
 		panic(err)
