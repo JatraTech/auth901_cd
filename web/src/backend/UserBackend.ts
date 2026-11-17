@@ -95,6 +95,40 @@ export function deleteUser(user) {
   }).then(res => res.json());
 }
 
+export function getUserApplications(owner, name) {
+  return fetch(`${Setting.ServerUrl}/api/get-user-applications?owner=${encodeURIComponent(owner)}&name=${encodeURIComponent(name)}`, {
+    method: "GET",
+    credentials: "include",
+    headers: {
+      "Accept-Language": Setting.getAcceptLanguage(),
+    },
+  }).then(res => res.json());
+}
+
+export function addUserApplication(owner, name, application) {
+  return fetch(`${Setting.ServerUrl}/api/add-user-application`, {
+    method: "POST",
+    credentials: "include",
+    body: JSON.stringify({owner, name, application}),
+    headers: {
+      "Content-Type": "application/json",
+      "Accept-Language": Setting.getAcceptLanguage(),
+    },
+  }).then(res => res.json());
+}
+
+export function removeUserApplication(owner, name, application) {
+  return fetch(`${Setting.ServerUrl}/api/remove-user-application`, {
+    method: "POST",
+    credentials: "include",
+    body: JSON.stringify({owner, name, application}),
+    headers: {
+      "Content-Type": "application/json",
+      "Accept-Language": Setting.getAcceptLanguage(),
+    },
+  }).then(res => res.json());
+}
+
 export function getAddressOptions(url) {
   return fetch(url, {
     method: "GET",

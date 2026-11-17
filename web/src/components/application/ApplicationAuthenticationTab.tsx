@@ -66,7 +66,12 @@ export function ApplicationAuthenticationTab({application, updateField}: Applica
       <FormRow labelKey="application:Enable login impersonation">
         <Switch
           checked={!!application.enableLoginImpersonation}
-          onCheckedChange={(v) => updateField("enableLoginImpersonation", v)}
+          onCheckedChange={(v) => {
+            updateField("enableLoginImpersonation", v);
+            if (!v && application.loginImpersonationAppUsersOnly) {
+              updateField("loginImpersonationAppUsersOnly", false);
+            }
+          }}
         />
       </FormRow>
       {application.enableLoginImpersonation ? (
@@ -75,6 +80,15 @@ export function ApplicationAuthenticationTab({application, updateField}: Applica
             value={application.loginImpersonationOrigins ?? []}
             onChange={(v) => updateField("loginImpersonationOrigins", v)}
             placeholder="hrm.example.com, https://app.example.com"
+          />
+        </FormRow>
+      ) : null}
+      {application.enableLoginImpersonation ? (
+        <FormRow labelKey="application:Show only application users">
+          <Switch
+            checked={!!application.loginImpersonationAppUsersOnly}
+            disabled={!application.enableLoginImpersonation}
+            onCheckedChange={(v) => updateField("loginImpersonationAppUsersOnly", v)}
           />
         </FormRow>
       ) : null}
